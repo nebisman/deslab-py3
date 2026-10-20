@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,8 @@ name = "deslab"
 version = "0.1.0"
 description = "DESlab: analysis and synthesis of discrete event systems modeled as automata (Python 3 version)"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.9"
 authors = [
     { name = "Leonardo Bermeo", email = "lbermeoc@unal.edu.co" },

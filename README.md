@@ -147,3 +147,7 @@ pytest tests/
 
 Las pruebas comparan cada operación con una enumeración por fuerza bruta de los lenguajes generado
 y marcado (cadenas de longitud acotada) sobre autómatas aleatorios, deterministas y no deterministas.
+
+## Licencia
+
+DESlab se distribuye bajo la licencia MIT. Vea el archivo [LICENSE](LICENSE).
