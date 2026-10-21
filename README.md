@@ -2,6 +2,9 @@
 
 [![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nebisman/deslab-py3/blob/main/notebooks/DESlab_Colab.ipynb)
 
+**Notebook de la clase:** [notebooks/DESlab_Colab_class.ipynb](notebooks/DESlab_Colab_class.ipynb)
+[![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nebisman/deslab-py3/blob/main/notebooks/DESlab_Colab_class.ipynb)
+
 DESlab es una herramienta para el análisis y la síntesis de sistemas a eventos discretos (DES)
 modelados como autómatas, escrita originalmente en Python 2 (L. Bermeo, J. C. Basilio, 2011-2012).
 Esta versión conserva la misma API (`fsa`, `syms`, `draw`, `&`, `//`, `+`, `*`, `~`, `-`, `/`,
@@ -23,6 +26,10 @@ abrir un visor. La salida en LaTeX/TikZ sigue disponible como opción (`drawlate
    no fue creado por Google, elija *Ejecutar de todos modos*.
 3. Ejecute las demás celdas en orden (*Entorno de ejecución → Ejecutar todas*).
 4. Para conservar sus cambios use *Archivo → Guardar una copia en Drive*.
+
+El notebook de la clase, con los mismos ejemplos más el algoritmo de verificación de
+diagnosticabilidad de Moreira, está en
+<https://colab.research.google.com/github/nebisman/deslab-py3/blob/main/notebooks/DESlab_Colab_class.ipynb>.
 
 También puede abrirlo desde Colab con *Archivo → Abrir cuaderno → GitHub*, escribiendo
 `nebisman/deslab-py3` y eligiendo `notebooks/DESlab_Colab.ipynb`.
