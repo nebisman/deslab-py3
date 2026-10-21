@@ -6,7 +6,7 @@
 [![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nebisman/deslab-py3/blob/main/notebooks/DESlab_Colab_class.ipynb)
 
 DESlab es una herramienta para el análisis y la síntesis de sistemas a eventos discretos (DES)
-modelados como autómatas, escrita originalmente en Python 2 (L. Bermeo, J. C. Basilio, 2011-2012).
+modelados como autómatas, escrita originalmente en Python 2.
 Esta versión conserva la misma API (`fsa`, `syms`, `draw`, `&`, `//`, `+`, `*`, `~`, `-`, `/`,
 `observer`, `diagnoser`, ...) y funciona con Python 3 y las versiones actuales de
 [networkx](https://networkx.org) y [graphviz](https://graphviz.readthedocs.io).
