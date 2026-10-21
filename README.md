@@ -74,3 +74,9 @@ G1 = fsa(X, Sigma, T, X0, Xm, table, Sigobs=[a1, b1], name='$G_1$ -- example 1')
 draw(G1, observer(G1), ~G1)      # tres figuras inline en el notebook
 G1                               # en la última línea de una celda también se dibuja
 ```
+
+
+
+## Licencia
+
+DESlab se distribuye bajo la licencia MIT. Vea el archivo [LICENSE](LICENSE).
