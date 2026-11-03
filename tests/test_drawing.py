@@ -37,6 +37,19 @@ def test_dot_source():
     assert 'label=' not in automaton2dot(example(), 'figure').split('\n')[1]
 
 
+def test_uncontrollable_color():
+    syms('x0 x1 a u')
+    G = fsa([x0, x1], [a, u], [(x0, a, x1), (x0, u, x1), (x1, u, x0)], [x0], [x0],
+            Sigcon=[a], Sigobs=[a])
+    assert drawing.xcolor2hex(drawing.UCON_COLOR) == '#ff2a7f'
+    edges = drawing._edge_groups(G)
+    assert (x0, x1, [a], True, True) in edges and (x0, x1, [u], False, False) in edges
+    src = automaton2dot(G)
+    assert src.count('#ff2a7f') == 4 and src.count('fontcolor="#ff2a7f"') == 2
+    assert '#ff2a7f' not in automaton2dot(G, 'figure')
+    assert '#ff2a7f' not in automaton2dot(example())  # all events controllable
+
+
 @needs_dot
 def test_svg_and_repr():
     G = example()

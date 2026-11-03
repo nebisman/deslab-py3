@@ -41,11 +41,13 @@ COLORS = {'plantfill': (0.960784, 0.850980, 0.039216),
           'specline': (0.00000, 0.05098, 0.36471),
           'uobsb': (0.10980, 0.30196, 0.94510),
           'uobsg': (0.035294, 0.533333, 0.458824),
+          'ucon': (1.0, 0.164706, 0.498039),  # uncontrollable events (#ff2a7f)
           'black': (0, 0, 0), 'white': (1, 1, 1), 'gray': (0.5, 0.5, 0.5),
           'red': (1, 0, 0), 'green': (0, 1, 0), 'blue': (0, 0, 1),
           'cyan': (0, 1, 1), 'magenta': (1, 0, 1), 'yellow': (1, 1, 0),
           'orange': (1, 0.5, 0), 'violet': (0.5, 0, 0.5), 'brown': (0.75, 0.5, 0.25)}
 UOBS_COLOR = ['uobsg', 100]
+UCON_COLOR = ['ucon', 100]
 # styles of automata drawn with rectangular states
 BOXSTYLES = {'rectangle', 'rectangle3d', 'crectangle', 'verifier', 'diagnoser', 'observer'}
 BALLSTYLES = {'normal3d', 'rectangle3d'}
@@ -97,21 +99,23 @@ def _hlabel(latex, math=True):
 
 
 def _edge_groups(automaton):
-    """ The transitions between each pair of states are joined
-    in two edges: one for the observable events and other for
-    the unobservable ones (drawn dashed)."""
+    """ The transitions between each pair of states are joined in
+    edges according to the observability and controllability of the
+    events: the unobservable events are drawn dashed and the
+    uncontrollable ones with the color UCON_COLOR. It returns the
+    list of edges (x, y, events, observable, controllable)."""
     groups = {}
     for x, y, e in automaton.Graph.edges(keys=True):
         groups.setdefault((x, y), set()).add(e)
     edges = []
     for (x, y) in sorted(groups, key=lambda p: (_sortkey(p[0]), _sortkey(p[1]))):
         events = groups[(x, y)]
-        obs = _sorted(events & automaton.Sigobs)
-        uobs = _sorted(events - automaton.Sigobs)
-        if obs:
-            edges.append((x, y, obs, True))
-        if uobs:
-            edges.append((x, y, uobs, False))
+        for observable in (True, False):
+            obs = events & automaton.Sigobs if observable else events - automaton.Sigobs
+            for controllable in (True, False):
+                group = obs & automaton.Sigcon if controllable else obs - automaton.Sigcon
+                if group:
+                    edges.append((x, y, _sorted(group), observable, controllable))
     return edges
 
 
@@ -127,7 +131,8 @@ def _check_graphviz():
 def _build_graph(automaton, style='beamer', **options):
     """ Builds the graphviz Digraph of an automaton. It returns the
     graph, the dictionary of node ids of states, and the list of
-    edges (x, y, events, observable) indexed by the edge id."""
+    edges (x, y, events, observable, controllable) indexed by the
+    edge id."""
     _check_graphviz()
     engine = automaton.render if automaton.render in ENGINES else 'dot'
     g = graphviz.Digraph(engine=engine)
@@ -166,11 +171,14 @@ def _build_graph(automaton, style='beamer', **options):
             g.edge('init_' + ids[x], ids[x], penwidth='1.2')
     edges = _edge_groups(automaton)
     uobs_color = xcolor2hex(UOBS_COLOR) if style != 'figure' else '#000000'
-    for k, (x, y, events, observable) in enumerate(edges):
+    ucon_color = xcolor2hex(UCON_COLOR) if style != 'figure' else '#000000'
+    for k, (x, y, events, observable, controllable) in enumerate(edges):
         label = ','.join(latex2html(_event_label(automaton, e)) for e in events)
         attrs = {'label': '<%s>' % (label if label else ' '), 'id': 'e%d' % k}
         if not observable:
             attrs.update(style='dashed', color=uobs_color, fontcolor=uobs_color)
+        if not controllable:
+            attrs.update(color=ucon_color, fontcolor=ucon_color)
         g.edge(ids[x], ids[y], **attrs)
     return g, ids, edges
 
@@ -378,13 +386,17 @@ def _draw_matplotlib(automata, style):
         layer = _layers(automaton)
         for x in _sorted(automaton.X):
             graph.add_node(x, layer=layer[x])
-        labels = {}
-        for x, y, events, observable in _edge_groups(automaton):
+        labels, ucon = {}, {}
+        for x, y, events, observable, controllable in _edge_groups(automaton):
             text = ','.join(latex2text(_event_label(automaton, e)) for e in events)
             if graph.has_edge(x, y):
                 text = labels[(x, y)] + ' | ' + text
             graph.add_edge(x, y)
             labels[(x, y)] = text
+            # edges with only uncontrollable events are drawn with UCON_COLOR
+            ucon[(x, y)] = ucon.get((x, y), True) and not controllable
+        ucon_color = xcolor2hex(UCON_COLOR) if style != 'figure' else '#000000'
+        edge_colors = [ucon_color if ucon[edge] else 'black' for edge in graph.edges()]
         pos = nx.multipartite_layout(graph, subset_key='layer')
         if automaton.direction == 'UD':
             pos = dict((x, (p[1], -p[0])) for x, p in pos.items())
@@ -399,12 +411,17 @@ def _draw_matplotlib(automata, style):
         nx.draw_networkx_labels(graph, pos, ax=ax, labels=dict(
             (x, latex2text(_state_label(automaton, x))) for x in graph))
         nx.draw_networkx_edges(graph, pos, ax=ax, node_size=900, arrows=True,
-                               connectionstyle='arc3,rad=0.15')
-        try:
-            nx.draw_networkx_edge_labels(graph, pos, edge_labels=labels, ax=ax,
-                                         connectionstyle='arc3,rad=0.15')
-        except TypeError:  # old networkx versions
-            nx.draw_networkx_edge_labels(graph, pos, edge_labels=labels, ax=ax)
+                               connectionstyle='arc3,rad=0.15', edge_color=edge_colors)
+        for color, flag in (('black', False), (ucon_color, True)):
+            group = dict((edge, text) for edge, text in labels.items() if ucon[edge] == flag)
+            if not group:
+                continue
+            try:
+                nx.draw_networkx_edge_labels(graph, pos, edge_labels=group, ax=ax,
+                                             font_color=color, connectionstyle='arc3,rad=0.15')
+            except TypeError:  # old networkx versions
+                nx.draw_networkx_edge_labels(graph, pos, edge_labels=group, ax=ax,
+                                             font_color=color)
         for x0 in automaton.X0:
             px, py = pos[x0]
             ax.annotate('', xy=(px, py), xytext=(px - 0.25, py),

@@ -105,18 +105,21 @@ def automaton2tikz(automaton, style='figurecolor'):
         code.append('  \\node[%s] (%s) at %s {$%s$};' % (
             ','.join(keys), obj['name'], _point(obj['pos']), _state_label(automaton, x)))
     uobs = None if style == 'figure' else 'uobsg'
+    ucon = None if style == 'figure' else 'ucon'
     for edge in layout.get('edges', []):
         eid = edge.get('id', '')
         if not eid.startswith('e'):
             continue
-        x, y, events, observable = edges[int(eid[1:])]
+        x, y, events, observable, controllable = edges[int(eid[1:])]
         tail, head = objects[edge['tail']]['name'], objects[edge['head']]['name']
-        attrs = '->' if observable else '->,densely dashed' + (',' + uobs if uobs else '')
+        # uncontrollable events: color ucon, unobservable events: dashed (color uobsg)
+        color = (ucon if not controllable else None) or (uobs if not observable else None)
+        attrs = '->' + ('' if observable else ',densely dashed') + (',' + color if color else '')
         code.append('  \\draw [%s] %s;' % (attrs, _bezier(edge['pos'], tail, head)))
         label = ','.join(_event_label(automaton, e) for e in events)
         if 'lp' in edge:
-            color = '' if (observable or not uobs) else '[text=%s]' % uobs
-            code.append('  \\draw %s node%s {$%s$};' % (_point(edge['lp']), color, label))
+            text = '[text=%s]' % color if color else ''
+            code.append('  \\draw %s node%s {$%s$};' % (_point(edge['lp']), text, label))
     code.append('\\end{tikzpicture}')
     return '\n'.join(code) + '\n'
 
