@@ -35,7 +35,7 @@ Using
     >>> G1 = fsa(X,Sigma,T,X0,Xm,table,name='$G_1$ -- example 1')
     >>> draw(G1)
 """
-#    Copyright (C) 2011-2012 by
+#    Copyright (C) 2026 by
 #    Leonardo Bermeo <lbermeoc@unal.edu.co>
 #    Joao Carlos Basilio <basilio@poli.ufrj.br>
 #    MIT license (see LICENSE).
