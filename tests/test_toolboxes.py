@@ -44,6 +44,23 @@ def simple_plant():
     return G, H
 
 
+def test_allevents():
+    G, H = simple_plant()
+    G = G.setpar(table=[('a', '\\alpha')])
+    E = allevents(G)
+    assert len(E.X) == 1 and E.X0 == E.Xm == E.X
+    s = list(E.X)[0]
+    assert E.Sigma == G.Sigma and E.Gamma(s) == G.Sigma
+    assert all(E.delta(s, e) == s for e in G.Sigma)
+    assert E.Sigcon == {'a'} and E.Sigobs == G.Sigobs
+    assert E.symDict['a'] == '\\alpha'
+    assert G <= E  # L(G) is contained in Sigma^*
+    # no controllable or observable events in G
+    F = allevents(G.setpar(Sigcon=[], Sigobs=[]))
+    assert F.Sigcon == frozenset() and F.Sigobs == frozenset()
+    assert allevents(fsa()).Sigma == frozenset()
+
+
 def test_supcontrollable_simple():
     G, H = simple_plant()
     assert not iscontrollable(H, G)

@@ -8,6 +8,30 @@ from ..src.automatadefs import fsa
 from ..src.algorithms import (product, trim, pclosure, ispfclosed,
                               sigmakleeneclos, _newstate)
 from ..src.utilities import _sorted
+from ..src.def_const import EMPTYSTRINGSET
+
+
+def allevents(G):
+    """
+    This function returns a single state automaton with a self
+    loop for each event of G. Its single state is initial and
+    marked, so it generates and marks Sigma^*, where Sigma is the
+    set of events of G. The observable and controllable events
+    and the LaTeX labels of the events of G are preserved.
+
+    Example
+    -------
+    syms('x0 x1 a u')
+    G = fsa([x0, x1], [a, u], [(x0, a, x1), (x1, u, x0)], [x0], [x0], Sigcon=[a])
+    E = allevents(G)
+    draw(E)
+    """
+    x0 = 's0'
+    Sigma = G.Sigma - EMPTYSTRINGSET
+    transitions = [(x0, e, x0) for e in _sorted(Sigma)]
+    table = [(x0, 's_0')] + [(e, G.symDict[e]) for e in _sorted(Sigma) if e in G.symDict]
+    return fsa([x0], Sigma, transitions, [x0], [x0], table,
+               Sigobs=G.Sigobs & Sigma, Sigcon=G.Sigcon & Sigma, name=r'$\Sigma^*$')
 
 
 def iscontrollable(H, G):
