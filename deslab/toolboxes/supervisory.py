@@ -67,7 +67,7 @@ def is2controllable(H, G):
     return L <= H_pc
 
 
-def supcontrollable(H, G, verbose=False):
+def supcontrollable(H, G, verbose=False, renamestates=False):
     """
     This function calculates an automaton that marks the supremal
     controllable sublanguage of Lm(H) with respect to G and the set
@@ -84,7 +84,10 @@ def supcontrollable(H, G, verbose=False):
             print('Using General Algorithm')
         Ksupc = supcontrollablegeneral(H, G)
     if not Ksupc.empty:
-        Ksupc = Ksupc.renamestates('number')
+        if renamestates:
+            Ksupc = Ksupc.renamestates('number')
+        else:
+            Ksupc = Ksupc.renamestates({(x,y): x for (x,y) in Ksupc.X})
     Ksupc = Ksupc.setpar(name=r'$K^{\uparrow C}$')
     return Ksupc
 
