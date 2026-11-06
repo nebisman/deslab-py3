@@ -50,6 +50,22 @@ def test_uncontrollable_color():
     assert '#ff2a7f' not in automaton2dot(example())  # all events controllable
 
 
+def test_fix_subscripts():
+    # pieces of the label q<SUB>1</SUB> written by graphviz in separate <text>
+    svg = ('<text text-anchor="start" x="26" y="-17.6" font-family="Times,serif" '
+           'font-size="14.00">q</text>\n'
+           '<text text-anchor="start" x="36" y="-17.6" font-family="Times,serif" '
+           'baseline-shift="sub" font-size="14.00">1</text>\n</g>')
+    out = drawing._fix_subscripts(svg)
+    assert out.count('<text ') == 1 and out.endswith('</text>\n</g>')
+    assert 'baseline-shift' not in out and 'text-anchor="middle"' in out
+    # relative displacements, so that the line is a single text chunk
+    assert '<tspan font-family="Times,serif" font-size="10.50" dy="4.20">1</tspan>' in out
+    assert ' y=' not in out.split('<tspan', 1)[1]
+    x = float(out.split(' x="')[1].split('"')[0])
+    assert abs(x - 35) < 1.5  # center of the line (26 + (10 + 8) / 2)
+
+
 @needs_dot
 def test_svg_and_repr():
     G = example()

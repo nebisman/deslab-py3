@@ -199,25 +199,83 @@ def automaton2dot(automaton, style='beamer', **options):
     return automaton2graphviz(automaton, style, **options).source
 
 
-_SHIFTED_TEXT = re.compile(r'<text([^>]*?) baseline-shift="(sub|super)"([^>]*)>')
+# runs of consecutive <text> elements written by graphviz for HTML-like labels
+_TEXT_RUN = re.compile(r'(?:<text [^>]*text-anchor="start"[^>]*>[^<]*</text>\s*)+')
+_TEXT_ELEM = re.compile(r'<text ([^>]*)>([^<]*)</text>')
+_ATTR = re.compile(r'([\w:-]+)="([^"]*)"')
+# widths of the Times-Roman characters (AFM metrics, thousandths of em)
+_TIMES_WIDTHS = dict(zip(
+    ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~',
+    (250, 333, 408, 500, 500, 833, 778, 333, 333, 333, 500, 564, 250, 333, 250, 278,
+     500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 278, 278, 564, 564, 564, 444,
+     921, 722, 667, 667, 722, 611, 556, 722, 722, 333, 389, 722, 611, 889, 722, 722,
+     556, 722, 667, 556, 611, 722, 722, 944, 722, 722, 611, 333, 278, 333, 469, 500,
+     333, 444, 500, 444, 500, 444, 333, 500, 500, 278, 278, 500, 278, 778, 500, 500,
+     500, 500, 333, 389, 278, 500, 500, 722, 500, 500, 444, 480, 200, 480, 541)))
+_SCRIPT_SIZE = 0.75  # relative size of subscripts and superscripts
+_SCRIPT_SHIFT = {'sub': 0.3, 'super': -0.4}  # vertical shift (em)
+
+
+def _span_width(text, size):
+    """ approximate width that graphviz assigns to a text written in
+    Times-Roman (graphviz measures the texts about 2pt wider)"""
+    return size * sum(_TIMES_WIDTHS.get(ch, 500) for ch in html.unescape(text)) / 1000.0 + 2.0
+
+
+def _merge_line(spans):
+    """ joins the spans (attrs, text) of a line of an HTML-like label in
+    a single <text> element with one <tspan> per span, centered at the
+    center of the line computed by graphviz."""
+    first, (last, last_text) = spans[0][0], spans[-1]
+    x0, y = float(first['x']), float(first['y'])
+    width = float(last['x']) - x0 + _span_width(last_text, float(last.get('font-size', 14)))
+    parent = dict((k, v) for k, v in first.items() if k != 'baseline-shift')
+    parent.update({'text-anchor': 'middle', 'x': '%.2f' % (x0 + width / 2.0)})
+    tspans, offset = [], 0.0
+    for attrs, text in spans:
+        shift = attrs.get('baseline-shift')
+        size = float(attrs.get('font-size', 14))
+        tattrs = dict((k, v) for k, v in attrs.items()
+                      if k not in ('x', 'y', 'text-anchor', 'baseline-shift'))
+        # relative displacements (dy): an absolute y would start a new
+        # text chunk, and each chunk would be centered separately
+        target = _SCRIPT_SHIFT.get(shift, 0.0) * size
+        if abs(target - offset) > 1e-6:
+            tattrs['dy'] = '%.2f' % (target - offset)
+            offset = target
+        if shift in _SCRIPT_SHIFT:
+            tattrs['font-size'] = '%.2f' % (_SCRIPT_SIZE * size)
+        tspans.append('<tspan %s>%s</tspan>' % (
+            ' '.join('%s="%s"' % item for item in tattrs.items()), text))
+    return '<text %s>%s</text>' % (
+        ' '.join('%s="%s"' % item for item in parent.items()), ''.join(tspans))
 
 
 def _fix_subscripts(svg):
-    """ graphviz writes subscripts and superscripts with the attribute
-    baseline-shift, which is not supported by all browsers (Firefox).
-    We replace it by an explicit displacement and a smaller font."""
+    """ graphviz writes each piece of an HTML-like label (for instance
+    'q' and the subscript '1' of q<SUB>1</SUB>) as a separate <text>
+    element placed with its own font metrics, which are wider than
+    those of the browsers, so that the subscripts appear detached from
+    their base. Moreover, it uses the attribute baseline-shift, which
+    is not supported by all browsers (Firefox). The pieces of each line
+    are joined in one <text> element with <tspan> children, so that the
+    browser places them one after the other, and the subscripts and
+    superscripts are drawn with an explicit displacement and a smaller
+    font."""
     def replace(match):
-        attrs = match.group(1) + match.group(3)
-        y = re.search(r' y="(-?[\d.]+)"', attrs)
-        size = re.search(r' font-size="([\d.]+)"', attrs)
-        if not (y and size):
-            return match.group(0)
-        fs = float(size.group(1))
-        dy = 0.3 * fs if match.group(2) == 'sub' else -0.4 * fs
-        attrs = attrs.replace(y.group(0), ' y="%.2f"' % (float(y.group(1)) + dy))
-        attrs = attrs.replace(size.group(0), ' font-size="%.2f"' % (0.75 * fs))
-        return '<text%s>' % attrs
-    return _SHIFTED_TEXT.sub(replace, svg)
+        run = match.group(0)
+        lines = []
+        for elem in _TEXT_ELEM.finditer(run):
+            attrs = dict(_ATTR.findall(elem.group(1)))
+            if 'x' not in attrs or 'y' not in attrs:
+                return run
+            prev = lines[-1][-1][0] if lines else None
+            if prev and prev['y'] == attrs['y'] and float(prev['x']) <= float(attrs['x']):
+                lines[-1].append((attrs, elem.group(2)))
+            else:
+                lines.append([(attrs, elem.group(2))])
+        return '\n'.join(_merge_line(line) for line in lines) + run[len(run.rstrip()):]
+    return _TEXT_RUN.sub(replace, svg)
 
 
 def automaton2svg(automaton, style='beamer', **options):
