@@ -26,10 +26,10 @@ def allevents(G):
     E = allevents(G)
     draw(E)
     """
-    x0 = 's0'
-    Sigma = G.Sigma - EMPTYSTRINGSET
+    x0 = 0
+    Sigma = G.Sigma 
     transitions = [(x0, e, x0) for e in _sorted(Sigma)]
-    table = [(x0, 's_0')] + [(e, G.symDict[e]) for e in _sorted(Sigma) if e in G.symDict]
+    table =  [(e, G.symDict[e]) for e in _sorted(Sigma) if e in G.symDict]
     return fsa([x0], Sigma, transitions, [x0], [x0], table,
                Sigobs=G.Sigobs & Sigma, Sigcon=G.Sigcon & Sigma, name=r'$\Sigma^*$')
 
