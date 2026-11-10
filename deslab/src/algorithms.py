@@ -868,6 +868,7 @@ def paralleldet(self, other):
     Sigobs1, Sigobs2 = self.Sigobs, other.Sigobs
     Sigcon1, Sigcon2 = self.Sigcon, other.Sigcon
     # initial values for composite automaton
+
     p0 = (list(X01)[0], list(X02)[0])
     X0_p = [p0]
     S = [p0]
