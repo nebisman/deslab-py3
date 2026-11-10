@@ -15,7 +15,7 @@ import os
 import shutil
 import subprocess
 from ..src.exceptions import *
-from .drawing import _build_graph, _state_label, _event_label
+from .drawing import _build_graph, _state_label, _event_label, _highlighted
 
 TEXFILES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'texfiles')
 BEAMERPREAMBLE = 'BeamerPreamble.tex'
@@ -47,6 +47,12 @@ def _xcolor(color, style):
         return None
     name, intensity = color
     return '%s!%s' % (name, intensity)
+
+
+def _rgbcolor(hexcolor):
+    """ xcolor specification of a color '#rrggbb'"""
+    r, g, b = (int(hexcolor[k:k + 2], 16) for k in (1, 3, 5))
+    return '{rgb,255:red,%d;green,%d;blue,%d}' % (r, g, b)
 
 
 def _point(p):
@@ -93,11 +99,17 @@ def automaton2tikz(automaton, style='figurecolor'):
     options.append('every state/.style={%s,draw=%s,very thick,fill=%s}'
                    % (shape.format(fill=fill), line, fill))
     code = ['\\begin{tikzpicture}[%s]' % ',\n  '.join(options)]
+    highlighted = _highlighted(automaton)
     for obj in objects.values():
         x = states.get(obj['name'])
         if x is None:
             continue
         keys = ['state']
+        if x in highlighted:
+            color = _rgbcolor(highlighted[x])
+            keys.append('fill=%s' % color)
+            if 'ball color' in shape:
+                keys.append('ball color=%s' % color)
         if x in automaton.X0:
             keys.append('initial')
         if x in automaton.Xm:

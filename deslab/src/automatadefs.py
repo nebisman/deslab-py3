@@ -24,6 +24,8 @@ GRAPHIC_TYPES = {'plant':         (['blue', 15], ['blue', 60], 'normal'),
                  'specification': (['specfill', 50], ['specline', 60], 'normal'),
                  'observer':      (['plantfill', 80], ['plantline', 60], 'rectangle')}
 GRAPHIC_DEFAULT = (['blue', 15], ['blue', 60], 'circle')
+# background color of the highlighted states (light magenta)
+HIGHLIGHT_COLOR = ['magenta', 50]
 
 
 def _isdefault(arg):
@@ -131,6 +133,7 @@ class fsa:
         self.scale = 1
         self.FillColor, self.LineColor, self.style = copy.deepcopy(
             GRAPHIC_TYPES.get(self.type, GRAPHIC_DEFAULT))
+        self.highlighted = {}  # state -> background color (see highlightstates)
 
     def _rebuild(self):
         """ Recomputes the Gamma and delta dictionaries from the
@@ -380,6 +383,41 @@ class fsa:
             else:
                 raise invalidArgument('key %s does not exist' % key)
         return auto
+
+    def highlightstates(self, states, color=HIGHLIGHT_COLOR):
+        """ This method returns a copy of the automaton in which the
+        given states are drawn with a light magenta background.
+        states can be a single state or a list (set) of states.
+        The optional parameter color changes the background color,
+        it is given as in the original DESlab, ['magenta', 25]
+        (25% of magenta and 75% of white), or as '#rrggbb'.
+        The highlighted states of previous calls are kept.
+
+        Example
+        -------
+        syms('q1 q2 q3 a1 b1 e')
+        T = [(q1,b1,q2),(q2,b1,q3),(q2,e,q3),(q3,a1,q1),(q2,a1,q2)]
+        G1 = fsa([q1,q2,q3],[a1,b1,e],T,[q1],[q1,q3])
+        G2 = G1.highlightstates([q2,q3])
+        draw(G1,G2)
+        """
+        # a state can be a tuple (product automata), so we first
+        # check whether the argument itself is a state
+        if isinstance(states, (list, set, frozenset)) or \
+                (isinstance(states, tuple) and states not in self.X):
+            states = frozenset(states)
+        else:
+            states = frozenset([states])
+        if not states <= self.X:
+            raise stateMembershipError('States %s do not belong to the state set X'
+                                       % (set(states - self.X),))
+        auto = self.copy()
+        highlighted = dict(getattr(auto, 'highlighted', {}))
+        highlighted.update((x, copy.deepcopy(color)) for x in states)
+        auto.highlighted = highlighted
+        return auto
+
+    highligtstates = highlightstates
 
     def __str__(self):
         lines = [str(self.name),

@@ -148,3 +148,18 @@ def test_drawgraph(monkeypatch):
     graph = nx.DiGraph([((), ('a',)), (('a',), ('a', 'b'))])
     drawgraph(graph, type='lex')
     assert len(shown) == 1
+
+
+def test_highlightstates():
+    G = example()
+    q1, q2, q3 = sorted(G.X, key=str)
+    H = G.highlightstates([q2, q3])
+    assert H.highlighted == {q2: HIGHLIGHT_COLOR, q3: HIGHLIGHT_COLOR}
+    assert G.highlighted == {}  # the original automaton is not modified
+    assert H.highlightstates(q1).highlighted.keys() == {q1, q2, q3}
+    assert G.highligtstates(q1).highlighted == {q1: HIGHLIGHT_COLOR}
+    with pytest.raises(stateMembershipError):
+        G.highlightstates(['qx'])
+    light_magenta = drawing.xcolor2hex(HIGHLIGHT_COLOR)
+    assert automaton2dot(H).count('fillcolor="%s"' % light_magenta) == 2
+    assert automaton2dot(G).count(light_magenta) == 0

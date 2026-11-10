@@ -78,6 +78,13 @@ def _colors(automaton, style):
     return xcolor2hex(automaton.LineColor), xcolor2hex(automaton.FillColor)
 
 
+def _highlighted(automaton):
+    """ background colors '#rrggbb' of the highlighted states
+    (see the method highlightstates)"""
+    states = getattr(automaton, 'highlighted', {})
+    return dict((x, xcolor2hex(c)) for x, c in states.items() if x in automaton.X)
+
+
 def _state_label(automaton, x):
     """ latex label of state x """
     if x in automaton.symDict:
@@ -154,15 +161,17 @@ def _build_graph(automaton, style='beamer', **options):
         return g, {}, []
     ids = dict((x, 's%d' % i) for i, x in enumerate(_sorted(automaton.X)))
     box = automaton.style in BOXSTYLES
+    highlighted = _highlighted(automaton)
     for x in _sorted(automaton.X):
+        xfill = highlighted.get(x, fill)
         attrs = {'label': _hlabel(_state_label(automaton, x)), 'color': line,
-                 'penwidth': '1.6', 'style': 'filled', 'fillcolor': fill}
+                 'penwidth': '1.6', 'style': 'filled', 'fillcolor': xfill}
         if box:
             attrs.update(shape='box', margin='0.1,0.05', height='0.35', width='0.35')
         else:
             attrs.update(shape='circle', margin='0.03', width='0.42', height='0.42')
         if automaton.style in BALLSTYLES:
-            attrs.update(style='radial', fillcolor='white:' + fill)
+            attrs.update(style='radial', fillcolor='white:' + xfill)
         if x in automaton.Xm:
             attrs.update(peripheries='2')
         g.node(ids[x], **attrs)
@@ -464,8 +473,10 @@ def _draw_matplotlib(automata, style):
         marked = [x for x in graph if x in automaton.Xm]
         nx.draw_networkx_nodes(graph, pos, nodelist=marked, node_size=1100, node_color='white',
                                edgecolors=line, linewidths=1.5, ax=ax)
-        nx.draw_networkx_nodes(graph, pos, node_size=700, node_color=fill,
-                               edgecolors=line, linewidths=1.5, ax=ax)
+        highlighted = _highlighted(automaton)
+        nx.draw_networkx_nodes(graph, pos, node_size=700, ax=ax,
+                               node_color=[highlighted.get(x, fill) for x in graph],
+                               edgecolors=line, linewidths=1.5)
         nx.draw_networkx_labels(graph, pos, ax=ax, labels=dict(
             (x, latex2text(_state_label(automaton, x))) for x in graph))
         nx.draw_networkx_edges(graph, pos, ax=ax, node_size=900, arrows=True,
