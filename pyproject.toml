@@ -12,7 +12,8 @@ license-files = ["LICENSE"]
 requires-python = ">=3.9"
 authors = [
     { name = "Leonardo Bermeo", email = "lbermeoc@unal.edu.co" },
-    { name = "Joao Carlos Basilio", email = "basilio@poli.ufrj.br" },
+    { name = "Mateo Rodríguez", email = "atarodriguezper@unal.edu.co" },
+    { name = "Edgar Sepulveda", email = "ehsepulvedao@unal.edu.co" },
 ]
 dependencies = [
     "networkx>=2.6",

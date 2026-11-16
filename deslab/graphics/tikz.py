@@ -5,9 +5,10 @@ figures produced by the original DESlab. This is optional: the
 draw() function displays the automata inline in notebooks and
 does not need LaTeX.
 """
-#    Copyright (C) 2011-2012 by
+#    DESLab v2 Copyright (C) 2026 by
 #    Leonardo Bermeo <lbermeoc@unal.edu.co>
-#    Joao Carlos Basilio <basilio@poli.ufrj.br>
+#    Mateo Rodríguez <atarodriguezper@unal.edu.co>
+#    Edgar Sepulveda <ehsepulvedao@unal.edu.co>
 #    MIT license (see LICENSE).
 
 import json
