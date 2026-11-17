@@ -49,6 +49,60 @@ def test_parallel(rng, det):
         assert (s in Lm) == (P(s, S1) in Lm1 and P(s, S2) in Lm2)
 
 
+
+def test_parallel_flat_states():
+    syms('I B E m1 m2 a1 b1 a2 b2 c')
+    tab = [(m1, 'M_1'), (m2, 'M_2')]
+    M1 = fsa([I, B], [a1, b1], [(I, a1, B), (B, b1, I)], [I], [I])
+    M2 = fsa([I, B], [a2, b2], [(I, a2, B), (B, b2, I)], [I], [I])
+    AGV = fsa([E, m1, m2], [b1, a2, b2, c], [(E, b1, m1), (m1, a2, E), (E, b2, m2), (m2, c, E)],
+              [E], [E], tab)
+    G = M1 // M2 // AGV
+    assert all(isinstance(x, tuple) and len(x) == 3 for x in G.X)
+    assert G.X0 == {(I, I, E)} and G.Xm == {(I, I, E)}
+    assert G == M1 // (M2 // AGV)                     # the result does not depend on the grouping
+    assert G.symDict[(I, I, m1)] == '(I,I,M_1)'       # flat latex labels
+    nested = parallel(M1 // M2, AGV, flat=False)
+    assert all(len(x) == 2 and len(x[0]) == 2 for x in nested.X)
+    assert are_isomorphic(G, nested)
+    # (G // G) has states with 6 components
+    assert all(len(x) == 6 for x in (G // G).X)
+
+
+def test_parallel_flat_mixed_states():
+    """ an operand whose states are not tuples of a single length is
+    not flattened, so that different states keep different names """
+    G1 = fsa(['a', ('a', 'b')], ['u', 'v'], [('a', 'u', ('a', 'b')), (('a', 'b'), 'v', 'a')],
+             ['a'], ['a'])
+    G2 = fsa([('b', 'c'), 'c'], ['v', 'w'], [(('b', 'c'), 'w', 'c'), ('c', 'v', ('b', 'c'))],
+             [('b', 'c')], ['c'])
+    P = G1 // G2
+    assert len(P) == len(parallel(G1, G2, flat=False))
+    assert are_isomorphic(P, parallel(G1, G2, flat=False))
+    assert ('a', ('b', 'c')) in P.X
+
+
+@pytest.mark.parametrize('rng', rngs(30))
+@pytest.mark.parametrize('det', [True, False])
+def test_parallel_flat_is_isomorphic_to_pairs(rng, det):
+    G1 = random_fsa(rng, events=('a', 'b', 'c'), det=det, eps=not det)
+    G2 = random_fsa(rng, events=('b', 'c', 'd'), det=det)
+    G3 = random_fsa(rng, nstates=3, events=('a', 'd'), det=det)
+    flat = G1 // G2 // G3
+    pairs = parallel(parallel(G1, G2, flat=False), G3, flat=False)
+    assert are_isomorphic(flat, pairs)
+    assert all(len(x) == 3 for x in flat.X)
+
+
+def test_diagnoser_of_a_composed_plant():
+    syms('x0 x1 y0 y1 a b sf')
+    G1 = fsa([x0, x1], [a, sf], [(x0, sf, x1), (x1, a, x1), (x0, a, x0)], [x0], [], Sigobs=[a])
+    G2 = fsa([y0, y1], [b], [(y0, b, y1), (y1, b, y0)], [y0], [], Sigobs=[b])
+    D = diagnoser(G1 // G2, sf)
+    assert D.is_dfa()
+    assert all(isinstance(x, tuple) and len(x) == 2 and x[1] in ('N', 'Y')
+               for xd in D.X for x in xd)
+
 @pytest.mark.parametrize('rng', rngs(30))
 def test_union(rng):
     G1 = random_fsa(rng, events=('a', 'b'))

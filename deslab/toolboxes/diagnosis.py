@@ -7,7 +7,7 @@
 
 import networkx as nx
 from ..src.automatadefs import fsa
-from ..src.algorithms import observer
+from ..src.algorithms import observer, parallel
 from ..src.def_const import *
 from ..src.exceptions import *
 from ..src.utilities import _sorted, _tostr
@@ -75,7 +75,8 @@ def diagnoser(G, sf=epsilon, Sigma_o=EMPTYSET):
         return dict(tex_tab)
 
     A = labelfailaut(sf)
-    D = observer(G // A, Sigma_obs)
+    # the states of the diagnoser are sets of pairs (x, label)
+    D = observer(parallel(G, A, flat=False), Sigma_obs)
     D = D.setpar(name='Diagnoser', type='diag-normal', table=latex(D))
     return D
 

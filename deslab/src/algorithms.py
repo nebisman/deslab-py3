@@ -38,6 +38,36 @@ def _label(G, x):
     return G.symDict[x] if x in G.symDict else _tostr(x)
 
 
+def _flatparts(G):
+    """ Components and latex label of the states of G inside a flat
+    state of a parallel composition. If all the states of G are tuples
+    of the same length, each state contributes its components;
+    otherwise it contributes itself as a single component. In both
+    cases the flat names of the composite states are unique."""
+    lengths = set(len(x) if isinstance(x, tuple) else None for x in G.X)
+    if len(lengths) == 1 and None not in lengths:
+        def label(x):
+            text = _label(G, x)
+            return text[1:-1] if text.startswith('(') and text.endswith(')') else text
+        return (lambda x: x), label
+    return (lambda x: (x,)), (lambda x: _label(G, x))
+
+
+def _flatcomposition(self, other, X_p, X0_p, Xm_p, transition, table_p):
+    """ Renames the states (x1, x2) built by the parallel composition
+    of self and other with flat tuples, so that (G1 // G2) // G3 has
+    states (x1, x2, x3) instead of ((x1, x2), x3), and builds their
+    latex labels. The labels of the events are kept."""
+    part1, label1 = _flatparts(self)
+    part2, label2 = _flatparts(other)
+    name = dict((p, part1(p[0]) + part2(p[1])) for p in X_p)
+    table = dict((k, v) for k, v in table_p.items() if k not in name)
+    for p in X_p:
+        table[name[p]] = '(' + label1(p[0]) + ',' + label2(p[1]) + ')'
+    return ([name[p] for p in X_p], [name[p] for p in X0_p], [name[p] for p in Xm_p],
+            [[name[p], e, name[q]] for p, e, q in transition], table)
+
+
 def _succ(G, x, e):
     """set of states reached from x through e (empty if e is not defined)"""
     return G.deltaDict.get(x, {}).get(e, EMPTYSET)
@@ -720,12 +750,13 @@ def observer(self, Sigma_o=[]):
     return observer
 
 
-def parallelnondet(self, other):
+def parallelnondet(self, other, flat=True):
     """This function builds the automaton corresponding
     to the parallel composition of the input automata.
     Specifically, parallelnondet assumes that the input
     automata (one or both of them) are non deterministic.
-    The epsilon event is never synchronized."""
+    The epsilon event is never synchronized. With flat=True
+    the states are flat tuples (see parallel)."""
     from .automatadefs import fsa
 
     # events that synchronize both automata
@@ -811,18 +842,22 @@ def parallelnondet(self, other):
                 table_p.update({sigma: self.symDict[sigma]})
             elif sigma in other.symDict:
                 table_p.update({sigma: other.symDict[sigma]})
+    if flat:
+        X_p, X0_p, Xm_p, transition, table_p = _flatcomposition(
+            self, other, X_p, X0_p, Xm_p, transition, table_p)
     # finally, we build the composite automaton
     parnondet = fsa(X_p, Sigma_p, transition, X0_p, Xm_p, table=table_p,
                     Sigobs=Sigobs_p, Sigcon=Sigcon_p, name='untitled')
     return parnondet
 
 
-def paralleldet(self, other):
+def paralleldet(self, other, flat=True):
     """This function builds the automaton corresponding
     to the parallel composition of the input automata.
     Specifically, paralleldet is optimized for deterministic
     automata and it produces an error if the user tries to
-    use it with nondeterministic automata"""
+    use it with nondeterministic automata. With flat=True
+    the states are flat tuples (see parallel)."""
     from .automatadefs import fsa
 
     def Gamma_p(p):
@@ -905,6 +940,9 @@ def paralleldet(self, other):
                 table_p.update({sigma: self.symDict[sigma]})
             elif sigma in other.symDict:
                 table_p.update({sigma: other.symDict[sigma]})
+    if flat:
+        X_p, X0_p, Xm_p, transition, table_p = _flatcomposition(
+            self, other, X_p, X0_p, Xm_p, transition, table_p)
     # building the composite automaton
     pardet = fsa(X_p, Sigma_p, transition, X0_p, Xm_p, table=table_p,
                  Sigobs=Sigobs_p, Sigcon=Sigcon_p, name='untitled')
@@ -1078,13 +1116,21 @@ def productdet(self, other):
     return proddet
 
 
-def parallel(self, other):
+def parallel(self, other, flat=True):
     """This function builds an automaton corresponding
     to the parallel composition  of the input automata.
     It selects the adequate function to build the parallel
     composition  automaton depending if the input automata
     are deterministic. If they are, it uses paralleltdet,
     otherwise uses parallelnondet
+
+    The states of the result are flat tuples: if the states of an
+    operand are tuples (for instance, it is itself a composition),
+    their components are written in the tuple of the result, so
+    that G1 // G2 // G3 has states (x1, x2, x3) instead of
+    ((x1, x2), x3). The states of an operand are flattened only if
+    all of them are tuples of the same length, which keeps the names
+    unique. With flat=False the states are the pairs (x1, x2).
     """
     from .automatadefs import fsa
     # if one of the automata is empty the result is empty
@@ -1092,9 +1138,9 @@ def parallel(self, other):
         return fsa()
     # case deterministic, method is_dfa is used
     if self.is_dfa() and other.is_dfa():
-        return paralleldet(self, other)
+        return paralleldet(self, other, flat)
     else:  # case non deterministic
-        return parallelnondet(self, other)
+        return parallelnondet(self, other, flat)
 
 
 def product(self, other):
