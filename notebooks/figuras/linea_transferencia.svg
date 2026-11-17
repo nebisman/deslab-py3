@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="240" viewBox="0 35 1000 240">
+  <!-- Línea de transferencia: M1 -> B1 -> M2 -> B2 -> TU, con rechazo r de TU a B1.
+       Eventos controlables en negro con una rayita, no controlables en rosado (#ff2a7f),
+       el color que usa DESlab para los eventos no controlables. -->
+  <rect width="1000" height="275" fill="#ffffff"/>
+
+  <!-- nombres de los componentes -->
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="15" fill="#b9770e" text-anchor="middle">
+    <text x="192" y="60">Máquina 1</text>
+    <text x="352" y="60">Buffer 1</text>
+    <text x="512" y="60">Máquina 2</text>
+    <text x="672" y="60">Buffer 2</text>
+    <text x="832" y="60">Unidad de prueba</text>
+  </g>
+
+  <!-- máquinas y unidad de prueba -->
+  <rect x="142" y="72" width="100" height="56" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <rect x="462" y="72" width="100" height="56" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <rect x="782" y="72" width="100" height="56" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="30" fill="#ffffff">
+    <text x="174" y="111">M<tspan font-size="19" dy="7">1</tspan></text>
+    <text x="494" y="111">M<tspan font-size="19" dy="7">2</tspan></text>
+    <text x="832" y="111" text-anchor="middle">TU</text>
+  </g>
+
+  <!-- buffers de capacidad 1 -->
+  <rect x="312" y="72" width="80" height="56" rx="4" fill="#fde3b5" stroke="#c97f0b" stroke-width="2"/>
+  <rect x="632" y="72" width="80" height="56" rx="4" fill="#fde3b5" stroke="#c97f0b" stroke-width="2"/>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="28" fill="#8a5a06">
+    <text x="337" y="110">B<tspan font-size="18" dy="7">1</tspan></text>
+    <text x="657" y="110">B<tspan font-size="18" dy="7">2</tspan></text>
+  </g>
+
+  <!-- entrada y salida de piezas -->
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="16" fill="#555555">
+    <text x="14" y="106">piezas</text>
+    <text x="948" y="106">salida</text>
+  </g>
+
+  <!-- eventos controlables: e1, e2, e3 -->
+  <g stroke="#222222" stroke-width="2.2">
+    <line x1="70" y1="100" x2="132" y2="100"/>
+    <line x1="113" y1="109" x2="123" y2="91"/>
+    <line x1="392" y1="100" x2="452" y2="100"/>
+    <line x1="433" y1="109" x2="443" y2="91"/>
+    <line x1="712" y1="100" x2="772" y2="100"/>
+    <line x1="753" y1="109" x2="763" y2="91"/>
+  </g>
+  <g fill="#222222">
+    <polygon points="142,100 130,94 130,106"/>
+    <polygon points="462,100 450,94 450,106"/>
+    <polygon points="782,100 770,94 770,106"/>
+  </g>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#222222">
+    <text x="80" y="86">e<tspan font-size="15" dy="6">1</tspan></text>
+    <text x="400" y="86">e<tspan font-size="15" dy="6">2</tspan></text>
+    <text x="720" y="86">e<tspan font-size="15" dy="6">3</tspan></text>
+  </g>
+
+  <!-- eventos no controlables: t1, t2, t3 y el rechazo r -->
+  <g stroke="#ff2a7f" stroke-width="2.2" fill="none">
+    <line x1="242" y1="100" x2="302" y2="100"/>
+    <line x1="562" y1="100" x2="622" y2="100"/>
+    <line x1="882" y1="100" x2="932" y2="100"/>
+    <polyline points="832,128 832,190 352,190 352,138"/>
+  </g>
+  <g fill="#ff2a7f">
+    <polygon points="312,100 300,94 300,106"/>
+    <polygon points="632,100 620,94 620,106"/>
+    <polygon points="942,100 930,94 930,106"/>
+    <polygon points="352,128 346,140 358,140"/>
+  </g>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#ff2a7f">
+    <text x="263" y="86">t<tspan font-size="15" dy="6">1</tspan></text>
+    <text x="583" y="86">t<tspan font-size="15" dy="6">2</tspan></text>
+    <text x="898" y="86">t<tspan font-size="15" dy="6">3</tspan></text>
+    <text x="586" y="182">r</text>
+  </g>
+  <text x="592" y="212" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#666666">pieza rechazada: vuelve al buffer 1</text>
+
+  <!-- convenciones -->
+  <line x1="20" y1="232" x2="60" y2="232" stroke="#222222" stroke-width="2.2"/>
+  <line x1="36" y1="240" x2="44" y2="224" stroke="#222222" stroke-width="2.2"/>
+  <text x="70" y="237" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#444444">evento controlable</text>
+  <line x1="20" y1="256" x2="60" y2="256" stroke="#ff2a7f" stroke-width="2.2"/>
+  <text x="70" y="261" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#444444">evento no controlable</text>
+</svg>
