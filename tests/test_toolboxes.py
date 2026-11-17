@@ -88,6 +88,23 @@ def test_supcontrollable_algorithms_agree(rng):
         assert Kg <= H
 
 
+def test_supcontrollable_violation_after_trim():
+    """ two machines and an AGV: trim deletes the blocking states 6
+    and 7, and then state 5 violates controllability (its
+    uncontrollable event b1 goes to 6), so another iteration is needed """
+    syms('I B E m1 m2 a1 b1 a2 b2 c')
+    M1 = fsa([I, B], [a1, b1], [(I, a1, B), (B, b1, I)], [I], [I], Sigcon=[a1])
+    M2 = fsa([I, B], [a2, b2], [(I, a2, B), (B, b2, I)], [I], [I], Sigcon=[a2])
+    AGV = fsa([E, m1, m2], [b1, a2, b2, c], [(E, b1, m1), (m1, a2, E), (E, b2, m2), (m2, c, E)],
+              [E], [E], Sigcon=[a2])
+    G = M1 // M2 // AGV
+    K = supcontrollable(G, G)
+    assert iscontrollable(K, G)
+    assert K == trim(K)
+    assert len(K) == 6
+    assert supcontrollablegeneral(G, G).X == trim(supcontrollablegeneral(G, G)).X
+
+
 def test_factory_example():
     """ example_supervisorio.py of the original DESlab """
     syms('x0 x1 y0 y1 z0 z1 z2 z3 xh10 xh11 xh20 xh21 e1 e2 e3 e4 e5 e60 e80 e62 e82')

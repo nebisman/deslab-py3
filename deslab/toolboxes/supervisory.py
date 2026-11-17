@@ -112,7 +112,12 @@ def supcontrollablegeneral(H, G):
             if not (G_events_uc <= H0.Gamma((y, x))):
                 H0 = H0.deletestate((y, x))
                 H0_changed = True
-        H0 = trim(H0)
+        # the states deleted by trim may create new violations of
+        # controllability, so they also require a new iteration
+        trimmed = trim(H0)
+        if len(trimmed) != len(H0):
+            H0_changed = True
+        H0 = trimmed
     return H0
 
 
