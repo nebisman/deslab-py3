@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="340" viewBox="0 0 760 340">
+  <!-- Ejemplo introductorio (diapositiva 2): máquinas M1 y M2, AGV y buffer B.
+       Eventos controlables en negro con una rayita, no controlables en rosado (#ff2a7f),
+       el color que usa DESlab para los eventos no controlables. -->
+  <rect width="760" height="340" fill="#ffffff"/>
+
+  <!-- piezas y evento a1 (controlable) -->
+  <text x="18" y="96" font-family="Liberation Sans, Arial, sans-serif" font-size="16" fill="#555555">piezas</text>
+  <line x1="74" y1="90" x2="140" y2="90" stroke="#222222" stroke-width="2.2"/>
+  <polygon points="150,90 138,84 138,96" fill="#222222"/>
+  <line x1="121" y1="99" x2="131" y2="81" stroke="#222222" stroke-width="2.2"/>
+  <text x="90" y="76" font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#222222">a<tspan font-size="15" dy="6">1</tspan></text>
+
+  <!-- máquinas, buffer y AGV -->
+  <text x="210" y="48" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="16" fill="#b9770e">Máquina 1</text>
+  <rect x="150" y="60" width="120" height="60" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <text x="192" y="101" font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="30" fill="#ffffff">M<tspan font-size="19" dy="7">1</tspan></text>
+
+  <text x="410" y="48" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="16" fill="#b9770e">Máquina 2</text>
+  <rect x="350" y="60" width="120" height="60" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <text x="392" y="101" font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="30" fill="#ffffff">M<tspan font-size="19" dy="7">2</tspan></text>
+
+  <text x="620" y="48" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="16" fill="#b9770e">Buffer</text>
+  <rect x="560" y="60" width="120" height="60" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <text x="620" y="101" text-anchor="middle" font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="30" fill="#ffffff">B</text>
+
+  <rect x="350" y="230" width="120" height="60" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <text x="410" y="270" text-anchor="middle" font-family="Liberation Serif, Times New Roman, serif" font-size="28" fill="#ffffff">AGV</text>
+  <text x="410" y="314" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="16" fill="#b9770e">vehículo autónomo</text>
+
+  <!-- b1 (no controlable): M1 deja la pieza en el AGV -->
+  <polyline points="210,120 210,260 340,260" fill="none" stroke="#ff2a7f" stroke-width="2.2"/>
+  <polygon points="350,260 338,254 338,266" fill="#ff2a7f"/>
+  <text x="268" y="250" font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#ff2a7f">b<tspan font-size="15" dy="6">1</tspan></text>
+
+  <!-- a2 (controlable): M2 toma la pieza del AGV -->
+  <line x1="390" y1="230" x2="390" y2="130" stroke="#222222" stroke-width="2.2"/>
+  <polygon points="390,120 384,132 396,132" fill="#222222"/>
+  <line x1="381" y1="207" x2="399" y2="195" stroke="#222222" stroke-width="2.2"/>
+  <text x="352" y="170" font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#222222">a<tspan font-size="15" dy="6">2</tspan></text>
+
+  <!-- b2 (no controlable): M2 deja la pieza en el AGV -->
+  <line x1="430" y1="120" x2="430" y2="220" stroke="#ff2a7f" stroke-width="2.2"/>
+  <polygon points="430,230 424,218 436,218" fill="#ff2a7f"/>
+  <text x="442" y="170" font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#ff2a7f">b<tspan font-size="15" dy="6">2</tspan></text>
+
+  <!-- c (no controlable): el AGV lleva la pieza al buffer -->
+  <polyline points="470,260 620,260 620,130" fill="none" stroke="#ff2a7f" stroke-width="2.2"/>
+  <polygon points="620,120 614,132 626,132" fill="#ff2a7f"/>
+  <text x="540" y="250" font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#ff2a7f">c</text>
+
+  <!-- convenciones -->
+  <line x1="20" y1="298" x2="60" y2="298" stroke="#222222" stroke-width="2.2"/>
+  <line x1="36" y1="306" x2="44" y2="290" stroke="#222222" stroke-width="2.2"/>
+  <text x="70" y="303" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#444444">evento controlable</text>
+  <line x1="20" y1="322" x2="60" y2="322" stroke="#ff2a7f" stroke-width="2.2"/>
+  <text x="70" y="327" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#444444">evento no controlable</text>
+</svg>
