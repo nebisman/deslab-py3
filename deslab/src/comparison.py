@@ -6,8 +6,11 @@
 #    MIT license (see LICENSE).
 
 import warnings
+from collections import deque
+import networkx as nx
 from .def_const import *
 from .exceptions import *
+from .utilities import _sorted
 from .algorithms import ac, trim, complement, union
 
 
@@ -129,6 +132,92 @@ def are_automataequal(self, other):
     test_equal = (X1 == X2) and (Sigma1 == Sigma2) and (delta1 == delta2)
     test_equal = test_equal and (X01 == X02) and (Xm1 == Xm2)
     return test_equal
+
+
+def _lexmapping(self):
+    """ Numbering 0, 1, 2, ... of the states in the lexicographic
+    (shortlex) order of the smallest string that reaches each of them:
+    breadth first search from the initial state, taking the events in
+    lexicographic order. This numbering only depends on the structure
+    of the automaton when it is deterministic and all its states are
+    accessible; otherwise the function returns None."""
+    if len(self.X0) != 1:
+        return None
+    if any(len(Y) > 1 for trans in self.deltaDict.values() for Y in trans.values()):
+        return None  # nondeterministic transitions
+    events = _sorted(self.Sigma)
+    x0, = self.X0
+    order, queue = {x0: 0}, deque([x0])
+    while queue:
+        x = queue.popleft()
+        trans = self.deltaDict.get(x, {})
+        for e in events:
+            if e in trans:
+                y, = trans[e]
+                if y not in order:
+                    order[y] = len(order)
+                    queue.append(y)
+    if len(order) != len(self.X):
+        return None  # non accessible states
+    return order
+
+
+def _isomorphic_graphs(self, other):
+    """ Isomorphism test of the transition graphs (networkx VF2): the
+    bijection must preserve the events of the transitions and the
+    initial and marked states."""
+    def digraph(G):
+        D = nx.DiGraph()
+        for x in G.X:
+            D.add_node(x, kind=(x in G.X0, x in G.Xm))
+        for x, y, e in G.Graph.edges(keys=True):
+            events = D[x][y]['events'] if D.has_edge(x, y) else frozenset()
+            D.add_edge(x, y, events=events | {e})
+        return D
+    return nx.is_isomorphic(digraph(self), digraph(other),
+                            node_match=lambda u, v: u['kind'] == v['kind'],
+                            edge_match=lambda u, v: u['events'] == v['events'])
+
+
+def are_isomorphic(self, other):
+    """ This function returns True if the automata G1 and G2 are
+    isomorphic, that is, if they are equal up to the names of the
+    states: there is a bijection between their states that preserves
+    the transitions (with the same events), the initial states and
+    the marked states. The event sets must be equal.
+
+    The states of both automata are renamed 0, 1, 2, ... in the
+    lexicographic order of the smallest strings that reach them, and
+    the renamed automata are compared with are_automataequal. This
+    numbering is canonical for deterministic automata whose states are
+    all accessible; for the other automata (several initial states,
+    nondeterministic transitions or non accessible states) an
+    isomorphism test of the transition graphs is used.
+
+    Example
+    -------
+    syms('q1 q2 q3 x y z a b')
+    T1 = [(q1,a,q2),(q2,b,q3),(q3,a,q1)]
+    G1 = fsa([q1,q2,q3],[a,b],T1,[q1],[q3])
+    T2 = [(z,a,x),(x,b,y),(y,a,z)]
+    G2 = fsa([x,y,z],[a,b],T2,[z],[y])
+    print(are_isomorphic(G1, G2))   # True
+    """
+    if self.empty or other.empty:
+        return are_automataequal(self, other)
+    if len(self.X) != len(other.X) or self.Sigma != other.Sigma or \
+            self.Graph.size() != other.Graph.size():
+        return False
+    order1, order2 = _lexmapping(self), _lexmapping(other)
+    if order1 is not None and order2 is not None:
+        return are_automataequal(self.renamestates(order1), other.renamestates(order2))
+    if (order1 is None) != (order2 is None):
+        # one of them is deterministic and accessible and the other is not
+        return False
+    return _isomorphic_graphs(self, other)
+
+
+are_isomorhic = are_isomorphic
 
 
 def are_langequiv(self, other):

@@ -63,3 +63,74 @@ def test_ispfclosed():
     assert ispfclosed(G)
     assert not ispfclosed(G.setpar(Xm=['y']))
     assert ispfclosed(pclosure(G.setpar(Xm=['y'])))
+
+
+def _brute_force_isomorphic(G1, G2):
+    """isomorphism test trying every bijection between the states"""
+    import itertools
+    if G1.empty or G2.empty:
+        return G1.empty and G2.empty
+    if len(G1) != len(G2) or G1.Sigma != G2.Sigma:
+        return False
+    X1 = list(G1.X)
+    T1 = {(x, e, y) for x, y, e in G1.Graph.edges(keys=True)}
+    T2 = {(x, e, y) for x, y, e in G2.Graph.edges(keys=True)}
+    for image in itertools.permutations(list(G2.X)):
+        f = dict(zip(X1, image))
+        if ({f[x] for x in G1.X0} == G2.X0 and {f[x] for x in G1.Xm} == G2.Xm
+                and {(f[x], e, f[y]) for x, e, y in T1} == T2):
+            return True
+    return False
+
+
+def test_are_isomorphic_examples():
+    syms('p q x y a b q1 q2 q3 q4')
+    # numbering the states in the order of their names is not enough
+    G1 = fsa([p, q], [a], [(p, a, q)], [p], [q])
+    G2 = fsa([x, y], [a], [(y, a, x)], [y], [x])
+    assert are_isomorphic(G1, G2) and are_isomorhic(G1, G2)
+    T = [(q1, a, q2), (q1, b, q3), (q2, b, q3), (q3, b, q4), (q4, a, q1)]
+    F = fsa([q1, q2, q3, q4], [a, b], T, [q1], [q1, q3])
+    assert are_isomorphic(F, F.renamestates({q1: 'z', q2: 'y', q3: 'x', q4: 'w'}))
+    assert are_isomorphic(F, F.renamestates('number'))
+    assert not are_isomorphic(F, F.setpar(Xm=[q1, q2]))
+    assert not are_isomorphic(F, F.addtransition([q4, b, q2]))
+    assert not are_isomorphic(F, F.renamevents({a: b, b: a}))
+    assert not are_isomorphic(F, F.deletetransition((q4, a, q1)).addtransition([q4, a, q2]))
+    # nondeterministic automata and non accessible states
+    N = fsa([q1, q2, q3], [a, b], [(q1, a, q2), (q1, a, q3), (q2, b, q1)], [q1], [q3])
+    assert are_isomorphic(N, N.renamestates({q1: 'u', q2: 'v', q3: 'w'}))
+    assert not are_isomorphic(N, N.renamestates({q1: 'u', q2: 'v', q3: 'w'}).setpar(X0=['v']))
+    U = fsa([q1, q2, q3, q4], [a, b], [(q1, a, q2), (q2, b, q1), (q3, a, q4)], [q1], [q1])
+    assert are_isomorphic(U, U.renamestates({q3: 0, q4: 1}))
+    assert not are_isomorphic(U, ac(U))
+    assert are_isomorphic(fsa(), fsa()) and not are_isomorphic(fsa(), F)
+
+
+def test_are_isomorphic_parallel_composition():
+    syms('I B E m1 m2 a1 b1 a2 b2 c')
+    M1 = fsa([I, B], [a1, b1], [(I, a1, B), (B, b1, I)], [I], [I])
+    M2 = fsa([I, B], [a2, b2], [(I, a2, B), (B, b2, I)], [I], [I])
+    AGV = fsa([E, m1, m2], [b1, a2, b2, c], [(E, b1, m1), (m1, a2, E), (E, b2, m2), (m2, c, E)], [E], [E])
+    G = M1 // M2 // AGV
+    assert G != AGV // M2 // M1
+    assert are_isomorphic(G, AGV // M2 // M1)
+    assert not are_isomorphic(G, trim(G))
+
+
+@pytest.mark.parametrize('rng', rngs(60))
+def test_are_isomorphic_brute_force(rng):
+    n = rng.randint(1, 5)
+    G = random_fsa(rng, nstates=n, events=('a', 'b'), det=rng.random() < 0.7, p=0.6)
+    if rng.random() < 0.5:
+        G = ac(G)
+    if G.empty:
+        return
+    names = list(range(len(G)))
+    rng.shuffle(names)
+    H = G.renamestates(dict(zip(sorted(G.X), names)))
+    assert are_isomorphic(G, H)
+    X, Sigma = sorted(H.X), sorted(H.Sigma)
+    for K in (H.setpar(Xm=set(H.Xm) ^ {rng.choice(X)}),
+              H.addtransition([rng.choice(X), rng.choice(Sigma), rng.choice(X)])):
+        assert are_isomorphic(G, K) == _brute_force_isomorphic(G, K) == are_isomorphic(K, G)
