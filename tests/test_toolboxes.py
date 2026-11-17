@@ -124,3 +124,49 @@ def test_factory_example():
     assert iscontrollable(K, G)
     assert K <= R
     assert K.name == r'$K^{\uparrow C}$'
+
+
+def test_nonconflict_examples():
+    syms('x0 x1 x2 a b')
+    G1 = fsa([x0, x1, x2], [a, b], [(x0, a, x1), (x1, b, x2)], [x0], [x2])
+    G2 = fsa([x0, x1, x2], [a, b], [(x0, b, x1), (x1, a, x2)], [x0], [x2])
+    assert not nonconflict(G1, G2)          # G1 marks ab and G2 marks ba
+    assert nonconflict(G1, G1) and nonconflict(G1, allevents(G1))
+    blocking = G1.addtransition([x0, b, x0]).addtransition([x1, a, x0]).deletetransition((x1, b, x2))
+    assert not nonconflict(blocking, allevents(blocking))
+    assert nonconflict(fsa(), G1)
+
+
+def test_nonconflict_transfer_line():
+    """ modular control of the transfer line (TCT example): the modular
+    supervisors are conflicting and the coordinator removes the conflict """
+    syms('D O B0 B1 e1 t1 e2 t2 e3 t3 r')
+    M1 = fsa([D, O], [e1, t1], [(D, e1, O), (O, t1, D)], [D], [D], Sigcon=[e1])
+    M2 = fsa([D, O], [e2, t2], [(D, e2, O), (O, t2, D)], [D], [D], Sigcon=[e2])
+    TU = fsa([D, O], [e3, t3, r], [(D, e3, O), (O, t3, D), (O, r, D)], [D], [D], Sigcon=[e3])
+    E1 = fsa([B0, B1], [t1, r, e2], [(B0, t1, B1), (B0, r, B1), (B1, e2, B0)], [B0], [B0], Sigcon=[e2])
+    E2 = fsa([B0, B1], [t2, e3], [(B0, t2, B1), (B1, e3, B0)], [B0], [B0], Sigcon=[e3])
+    G = M1 // M2 // TU
+    ALL = allevents(G)
+    SUP1, SUP2 = supcontrollable(G // E1, G), supcontrollable(G // E2, G)
+    assert nonconflict(SUP1, ALL) and nonconflict(SUP2, ALL)
+    assert not nonconflict(SUP1, SUP2)
+    P = SUP1 // SUP2
+    CO = supcontrollable(P, P)
+    assert nonconflict(CO // SUP1 // SUP2, ALL)
+    assert are_isomorphic(CO // SUP1 // SUP2, supcontrollable(G // E1 // E2, G))
+
+
+@pytest.mark.parametrize('rng', rngs(100))
+def test_nonconflict_languages(rng):
+    # for trim automata with the same events: pre(Lm1) & pre(Lm2) == pre(Lm1 & Lm2)
+    G1 = trim(random_fsa(rng, nstates=4, events=('a', 'b'), pm=0.5))
+    G2 = trim(random_fsa(rng, nstates=4, events=('a', 'b'), pm=0.5))
+    if G1.empty or G2.empty or G1.Sigma != G2.Sigma:
+        return
+    meet = G1 & G2
+    left = pclosure(G1) & pclosure(G2)
+    right = pclosure(trim(meet)) if not trim(meet).empty else fsa()
+    same = (left.empty and right.empty) or (not left.empty and not right.empty
+                                              and are_langequiv(left, right))
+    assert nonconflict(G1, G2) == same

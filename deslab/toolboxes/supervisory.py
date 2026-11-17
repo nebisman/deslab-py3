@@ -6,8 +6,8 @@
 #    MIT license (see LICENSE).
 
 from ..src.automatadefs import fsa
-from ..src.algorithms import (product, trim, pclosure, ispfclosed,
-                              sigmakleeneclos, _newstate)
+from ..src.algorithms import (product, parallel, ac, coac, trim, pclosure,
+                              ispfclosed, sigmakleeneclos, _newstate)
 from ..src.utilities import _sorted
 from ..src.def_const import EMPTYSTRINGSET
 
@@ -33,6 +33,29 @@ def allevents(G):
     table =  [(e, G.symDict[e]) for e in _sorted(Sigma) if e in G.symDict]
     return fsa([x0], Sigma, transitions, [x0], [x0], table,
                Sigobs=G.Sigobs & Sigma, Sigcon=G.Sigcon & Sigma, name=r'$\Sigma^*$')
+
+
+def nonconflict(G1, G2):
+    """
+    This function tests if the automata G1 and G2 are nonconflicting,
+    as the function nonconflict of TCT: it returns True if every
+    reachable state of the parallel composition G1 || G2 can reach a
+    marked state. When G1 and G2 are trim and have the same events this
+    is the condition pre(Lm(G1)) & pre(Lm(G2)) = pre(Lm(G1) & Lm(G2)).
+    With G2 = allevents(G1) it tests if G1 is nonblocking.
+
+    Example
+    -------
+    syms('x0 x1 x2 a b')
+    G1 = fsa([x0, x1, x2], [a, b], [(x0, a, x1), (x1, b, x2)], [x0], [x2])
+    G2 = fsa([x0, x1, x2], [a, b], [(x0, b, x1), (x1, a, x2)], [x0], [x2])
+    print(nonconflict(G1, G2))   # False: G1 marks ab and G2 marks ba
+    """
+    P = parallel(G1, G2)
+    if P.empty:
+        return True
+    P = ac(P)
+    return P.X == coac(P).X
 
 
 def iscontrollable(H, G):
