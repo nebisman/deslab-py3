@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="810" height="165" viewBox="0 35 810 165">
+  <!-- Pequeña fábrica sin fallas: M1 -> buffer (capacidad 1) -> M2. Eventos controlables
+       (e1, e2) en negro con una rayita, no controlables (t1, t2) en rosado (#ff2a7f),
+       el color que usa DESlab para los eventos no controlables. -->
+  <rect y="35" width="810" height="165" fill="#ffffff"/>
+
+  <!-- nombres de los componentes -->
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="15" fill="#b9770e" text-anchor="middle">
+    <text x="202" y="60">Máquina 1</text>
+    <text x="412" y="60">Buffer (capacidad 1)</text>
+    <text x="602" y="60">Máquina 2</text>
+  </g>
+
+  <!-- máquinas -->
+  <rect x="142" y="72" width="120" height="56" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <rect x="542" y="72" width="120" height="56" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="30" fill="#ffffff">
+    <text x="184" y="111">M<tspan font-size="19" dy="7">1</tspan></text>
+    <text x="584" y="111">M<tspan font-size="19" dy="7">2</tspan></text>
+  </g>
+
+  <!-- buffer de capacidad 1: una casilla -->
+  <rect x="352" y="72" width="120" height="56" rx="4" fill="#fde3b5" stroke="#c97f0b" stroke-width="2"/>
+  <rect x="389" y="84" width="46" height="32" rx="3" fill="#ffffff" stroke="#c97f0b" stroke-width="1.5"/>
+
+  <!-- entrada y salida de piezas -->
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="16" fill="#555555">
+    <text x="14" y="106">piezas</text>
+    <text x="748" y="106">salida</text>
+  </g>
+
+  <!-- eventos controlables: e1, e2 (las máquinas empiezan a trabajar) -->
+  <g stroke="#222222" stroke-width="2.2">
+    <line x1="70" y1="100" x2="132" y2="100"/>
+    <line x1="113" y1="109" x2="123" y2="91"/>
+    <line x1="472" y1="100" x2="532" y2="100"/>
+    <line x1="513" y1="109" x2="523" y2="91"/>
+  </g>
+  <g fill="#222222">
+    <polygon points="142,100 130,94 130,106"/>
+    <polygon points="542,100 530,94 530,106"/>
+  </g>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#222222">
+    <text x="80" y="86">e<tspan font-size="15" dy="6">1</tspan></text>
+    <text x="480" y="86">e<tspan font-size="15" dy="6">2</tspan></text>
+  </g>
+
+  <!-- eventos no controlables: t1, t2 (las máquinas terminan) -->
+  <g stroke="#ff2a7f" stroke-width="2.2">
+    <line x1="262" y1="100" x2="342" y2="100"/>
+    <line x1="662" y1="100" x2="732" y2="100"/>
+  </g>
+  <g fill="#ff2a7f">
+    <polygon points="352,100 340,94 340,106"/>
+    <polygon points="742,100 730,94 730,106"/>
+  </g>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#ff2a7f">
+    <text x="292" y="86">t<tspan font-size="15" dy="6">1</tspan></text>
+    <text x="687" y="86">t<tspan font-size="15" dy="6">2</tspan></text>
+  </g>
+
+  <!-- convenciones -->
+  <line x1="20" y1="160" x2="60" y2="160" stroke="#222222" stroke-width="2.2"/>
+  <line x1="36" y1="168" x2="44" y2="152" stroke="#222222" stroke-width="2.2"/>
+  <text x="70" y="165" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#444444">evento controlable</text>
+  <line x1="20" y1="184" x2="60" y2="184" stroke="#ff2a7f" stroke-width="2.2"/>
+  <text x="70" y="189" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#444444">evento no controlable</text>
+</svg>
