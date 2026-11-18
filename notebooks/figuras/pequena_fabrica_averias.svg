@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="830" height="290" viewBox="0 35 830 290">
+  <!-- Pequeña fábrica con averías: M1 -> buffer B (capacidad 2) -> M2; cada máquina puede
+       averiarse (f) y ser reparada (r). Eventos controlables en negro con una rayita, no
+       controlables en rosado (#ff2a7f), el color que usa DESlab para los eventos no controlables. -->
+  <rect y="35" width="830" height="290" fill="#ffffff"/>
+
+  <!-- nombres de los componentes -->
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="15" fill="#b9770e" text-anchor="middle">
+    <text x="202" y="60">Máquina 1</text>
+    <text x="422" y="60">Buffer B (capacidad 2)</text>
+    <text x="622" y="60">Máquina 2</text>
+  </g>
+
+  <!-- máquinas -->
+  <rect x="142" y="72" width="120" height="56" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <rect x="562" y="72" width="120" height="56" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="30" fill="#ffffff">
+    <text x="184" y="111">M<tspan font-size="19" dy="7">1</tspan></text>
+    <text x="604" y="111">M<tspan font-size="19" dy="7">2</tspan></text>
+  </g>
+
+  <!-- buffer de capacidad 2: dos casillas -->
+  <rect x="352" y="72" width="140" height="56" rx="4" fill="#fde3b5" stroke="#c97f0b" stroke-width="2"/>
+  <rect x="370" y="84" width="46" height="32" rx="3" fill="#ffffff" stroke="#c97f0b" stroke-width="1.5"/>
+  <rect x="428" y="84" width="46" height="32" rx="3" fill="#ffffff" stroke="#c97f0b" stroke-width="1.5"/>
+
+  <!-- máquinas averiadas -->
+  <g fill="#eeeeee" stroke="#999999" stroke-width="1.5" stroke-dasharray="5,3">
+    <rect x="162" y="200" width="80" height="36" rx="4"/>
+    <rect x="582" y="200" width="80" height="36" rx="4"/>
+  </g>
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#555555" text-anchor="middle">
+    <text x="202" y="223">averiada</text>
+    <text x="622" y="223">averiada</text>
+  </g>
+
+  <!-- entrada y salida de piezas -->
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="16" fill="#555555">
+    <text x="14" y="106">piezas</text>
+    <text x="768" y="106">salida</text>
+  </g>
+
+  <!-- eventos controlables: e1, e2 (arranques) y r1, r2 (reparaciones) -->
+  <g stroke="#222222" stroke-width="2.2">
+    <line x1="70" y1="100" x2="132" y2="100"/>
+    <line x1="113" y1="109" x2="123" y2="91"/>
+    <line x1="492" y1="100" x2="552" y2="100"/>
+    <line x1="533" y1="109" x2="543" y2="91"/>
+    <line x1="217" y1="200" x2="217" y2="138"/>
+    <line x1="209" y1="174" x2="225" y2="164"/>
+    <line x1="637" y1="200" x2="637" y2="138"/>
+    <line x1="629" y1="174" x2="645" y2="164"/>
+  </g>
+  <g fill="#222222">
+    <polygon points="142,100 130,94 130,106"/>
+    <polygon points="562,100 550,94 550,106"/>
+    <polygon points="217,128 211,140 223,140"/>
+    <polygon points="637,128 631,140 643,140"/>
+  </g>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#222222">
+    <text x="80" y="86">e<tspan font-size="15" dy="6">1</tspan></text>
+    <text x="500" y="86">e<tspan font-size="15" dy="6">2</tspan></text>
+    <text x="232" y="174">r<tspan font-size="15" dy="6">1</tspan></text>
+    <text x="652" y="174">r<tspan font-size="15" dy="6">2</tspan></text>
+  </g>
+
+  <!-- eventos no controlables: t1, t2 (fin de trabajo) y f1, f2 (averías) -->
+  <g stroke="#ff2a7f" stroke-width="2.2" fill="none">
+    <line x1="262" y1="100" x2="342" y2="100"/>
+    <line x1="682" y1="100" x2="752" y2="100"/>
+    <line x1="187" y1="128" x2="187" y2="190"/>
+    <line x1="607" y1="128" x2="607" y2="190"/>
+  </g>
+  <g fill="#ff2a7f">
+    <polygon points="352,100 340,94 340,106"/>
+    <polygon points="762,100 750,94 750,106"/>
+    <polygon points="187,200 181,188 193,188"/>
+    <polygon points="607,200 601,188 613,188"/>
+  </g>
+  <g font-family="Liberation Serif, Times New Roman, serif" font-style="italic" font-size="24" fill="#ff2a7f">
+    <text x="292" y="86">t<tspan font-size="15" dy="6">1</tspan></text>
+    <text x="707" y="86">t<tspan font-size="15" dy="6">2</tspan></text>
+    <text x="155" y="174">f<tspan font-size="15" dy="6">1</tspan></text>
+    <text x="575" y="174">f<tspan font-size="15" dy="6">2</tspan></text>
+  </g>
+
+  <!-- especificación de prioridad de reparación -->
+  <text x="412" y="266" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#666666">prioridad de reparación: mientras M2 esté averiada, M1 no se repara</text>
+
+  <!-- convenciones -->
+  <line x1="20" y1="290" x2="60" y2="290" stroke="#222222" stroke-width="2.2"/>
+  <line x1="36" y1="298" x2="44" y2="282" stroke="#222222" stroke-width="2.2"/>
+  <text x="70" y="295" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#444444">evento controlable</text>
+  <line x1="20" y1="314" x2="60" y2="314" stroke="#ff2a7f" stroke-width="2.2"/>
+  <text x="70" y="319" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#444444">evento no controlable</text>
+</svg>
