@@ -8,6 +8,11 @@
 **Control supervisorio (dos máquinas y un buffer):** [notebooks/DESlab_Colab_supervisorio.ipynb](notebooks/DESlab_Colab_supervisorio.ipynb)
 [![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nebisman/deslab-py3/blob/main/notebooks/DESlab_Colab_supervisorio.ipynb)
 
+**Del modelo al PLC:** [Pequeña factoría sin fallas](notebooks/pequena_factoria_sin_fallas.ipynb).
+El notebook explica los supuestos, la síntesis y verificación del supervisor, el mapa de
+entradas/salidas, el rearme de los comandos y todos los parámetros del generador OpenPLC.
+Guarda el archivo ST y las versiones del entorno para conservar los resultados.
+
 DESlab es una herramienta para el análisis y la síntesis de sistemas a eventos discretos (DES)
 modelados como autómatas, escrita originalmente en Python 2.
 Esta versión conserva la misma API (`fsa`, `syms`, `draw`, `&`, `//`, `+`, `*`, `~`, `-`, `/`,
@@ -83,6 +88,38 @@ G1 = fsa(X, Sigma, T, X0, Xm, table, Sigobs=[a1, b1], name='$G_1$ -- example 1')
 
 draw(G1, observer(G1), ~G1)      # tres figuras inline en el notebook
 G1                               # en la última línea de una celda también se dibuja
+```
+
+## Generación de Structured Text para OpenPLC
+
+El generador está integrado en DESlab y no requiere TCT ni el proyecto `deslab-st`:
+
+```python
+from deslab import generate_ST_OPENPLC
+
+# S y G son autómatas DESlab; actuators asocia eventos con señales del PLC.
+st = generate_ST_OPENPLC([S], plants=[G], actuators=actuators,
+                         namest="controlador", output_dir="ST_Generated")
+```
+
+Devuelve el texto ST y escribe `ST_Generated/controlador.st`. Con varios supervisores,
+se requiere una planta por supervisor en el mismo orden. La función y sus ayudantes
+privados están en [`deslab/codegen.py`](deslab/codegen.py), sin dependencias adicionales.
+Su docstring documenta la API; el [notebook completo](notebooks/pequena_factoria_sin_fallas.ipynb)
+presenta un caso ejecutable con señales y auxiliares de rearme.
+
+Las salidas conservan su valor hasta que otra acción las cambie. El ejemplo explicita
+el protocolo de arranque, fin y rearme, así como el supuesto de eventos en scans distintos.
+El programa configura una tarea de 20 ms e incluye un bloque aleatorio específico de
+OpenPLC. Generar el archivo no sustituye su compilación y prueba con el runtime y las
+direcciones de E/S elegidas. La coordinación entre pares tampoco sustituye el análisis
+de no bloqueo global cuando hay más de dos supervisores.
+
+Para ejecutar las pruebas del módulo y del resto de DESlab:
+
+```bash
+python -m pip install -e ".[test,plot]"
+python -m pytest tests
 ```
 
 

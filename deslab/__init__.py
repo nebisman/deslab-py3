@@ -66,3 +66,6 @@ from .toolboxes.supervisory import *
 # adding readwrite
 from . import readwrite
 from .readwrite.inputoutput import *
+
+# OpenPLC code generation
+from .codegen import generate_ST_OPENPLC
