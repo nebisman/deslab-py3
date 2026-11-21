@@ -3,7 +3,7 @@
 import pytest
 
 from deslab import fsa, generate_ST_OPENPLC
-from deslab.codegen import generate_ST_OPENPLC as module_generate
+from deslab.toolboxes.codegen import generate_ST_OPENPLC as module_generate
 from test_factory_st_runtime import FactoryST
 
 

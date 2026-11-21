@@ -84,11 +84,17 @@ Sigma = [a1, b1, e]
 X0 = [q1]
 Xm = [q1, q3]
 T = [(q1, b1, q2), (q2, b1, q3), (q2, e, q3), (q3, a1, q1), (q2, a1, q2)]
-G1 = fsa(X, Sigma, T, X0, Xm, table, Sigobs=[a1, b1], name='$G_1$ -- example 1')
+G1 = fsa(X, Sigma, T, X0, Xm, table, Sigobs=[a1, b1], Sigcon=Sigma,
+         name='$G_1$ -- example 1')
 
 draw(G1, observer(G1), ~G1)      # tres figuras inline en el notebook
 G1                               # en la última línea de una celda también se dibuja
 ```
+
+Dé siempre `Sigcon`, los eventos controlables, en la definición de cada autómata. Si se omite,
+DESlab considera controlables todos los eventos, y la composición paralela hereda esa
+clasificación. `Sigcon=[]` también se toma como omitido; para un autómata sin eventos
+controlables use `Sigcon=set()`.
 
 ## Generación de Structured Text para OpenPLC
 
@@ -104,9 +110,30 @@ st = generate_ST_OPENPLC([S], plants=[G], actuators=actuators,
 
 Devuelve el texto ST y escribe `ST_Generated/controlador.st`. Con varios supervisores,
 se requiere una planta por supervisor en el mismo orden. La función y sus ayudantes
-privados están en [`deslab/codegen.py`](deslab/codegen.py), sin dependencias adicionales.
+privados están en [`deslab/toolboxes/codegen.py`](deslab/toolboxes/codegen.py), sin dependencias adicionales.
 Su docstring documenta la API; el [notebook completo](notebooks/pequena_factoria_sin_fallas.ipynb)
 presenta un caso ejecutable con señales y auxiliares de rearme.
+
+La carpeta [`notebooks/factory_io`](notebooks/factory_io) reúne otros notebooks
+que generan programas ST y, en `Factory scenes`, las escenas de Factory I/O de la pequeña fábrica,
+la línea de transferencia y la línea de ensamble:
+
+- [Pequeña fábrica con un supervisor](notebooks/factory_io/LCS_pequena_factoria_st.ipynb):
+  el caso de introducción. Explica cómo se definen el contrato con las máquinas, el diccionario
+  `actuators` y los autómatas de rearme, revisa el programa línea por línea contra el supervisor
+  y sigue su ejecución scan por scan.
+- [Control modular de la pequeña fábrica con averías](notebooks/factory_io/LCS_modular_control_small_factory_openplc.ipynb):
+  dos supervisores modulares que actúan a la vez, con peticiones internas, parejas de
+  `Isolated` y autómatas de interfaz que apagan las órdenes.
+- [Control modular de la línea de transferencia](notebooks/factory_io/LCS_modular_control_transfer_line_openplc.ipynb):
+  dos supervisores conflictivos; el generador detecta el conflicto y agrega el coordinador al
+  programa.
+- [Línea de ensamble](notebooks/factory_io/LCS_assembly_line_openplc.ipynb): cinco
+  supervisores locales; el programa es idéntico al que generaba TCT_Proyect con TCT.
+
+La prueba [`tests/test_openplc_notebooks.py`](tests/test_openplc_notebooks.py) ejecuta las celdas
+de esos notebooks, simula scan por scan los programas de las dos pequeñas fábricas y de la línea
+de transferencia y compara el de la línea de ensamble con el de TCT.
 
 Las salidas conservan su valor hasta que otra acción las cambie. El ejemplo explicita
 el protocolo de arranque, fin y rearme, así como el supuesto de eventos en scans distintos.

@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="440" viewBox="0 0 900 440">
+  <!-- Línea de ensamble: una cinta trae tapas y otra trae bases; un pick & place de dos ejes
+       lleva cada tapa a una base sujeta; la pieza ensamblada sale al levantar la cuchilla de tope.
+       Órdenes del PLC (eventos controlables) en negro, sensores (no controlables) en rosado
+       (#ff2a7f), el color que usa DESlab para los eventos no controlables. -->
+  <rect width="900" height="440" fill="#ffffff"/>
+
+  <!-- cintas transportadoras -->
+  <g fill="#fde3b5" stroke="#c97f0b" stroke-width="2">
+    <rect x="60" y="92" width="420" height="34" rx="17"/>
+    <rect x="60" y="292" width="640" height="34" rx="17"/>
+  </g>
+  <g stroke="#c97f0b" stroke-width="1.2" stroke-dasharray="6,6">
+    <line x1="80" y1="109" x2="460" y2="109"/>
+    <line x1="80" y1="309" x2="680" y2="309"/>
+  </g>
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="15" fill="#b9770e">
+    <text x="70" y="82">cinta de tapas</text>
+    <text x="70" y="352">cinta de bases</text>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">
+    <text x="70" y="146">lids_conveyor_on / _off</text>
+    <text x="70" y="370">bases_conveyor_on / _off</text>
+  </g>
+
+  <!-- emisores -->
+  <g fill="#eeeeee" stroke="#999999" stroke-width="1.5" stroke-dasharray="5,3">
+    <rect x="8" y="88" width="44" height="42" rx="4"/>
+    <rect x="8" y="288" width="44" height="42" rx="4"/>
+  </g>
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="11" fill="#555555" text-anchor="middle">
+    <text x="30" y="106">emisor</text><text x="30" y="120">tapas</text>
+    <text x="30" y="306">emisor</text><text x="30" y="320">bases</text>
+  </g>
+
+  <!-- piezas sobre las cintas -->
+  <rect x="392" y="96" width="40" height="18" rx="3" fill="#7fb3d5" stroke="#2e6f9e" stroke-width="1.5"/>
+  <rect x="392" y="290" width="40" height="24" rx="3" fill="#82c785" stroke="#3b8a3e" stroke-width="1.5"/>
+
+  <!-- posicionadores: pinza (clamp) -->
+  <g fill="#f5a01a" stroke="#c97f0b" stroke-width="2">
+    <rect x="388" y="130" width="48" height="12" rx="2"/>
+    <rect x="388" y="276" width="48" height="12" rx="2"/>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">
+    <text x="500" y="158">Lid_clamp_on / _off</text>
+    <text x="500" y="262">Base_clamp_on / _off</text>
+  </g>
+  <g stroke="#999999" stroke-width="1">
+    <line x1="436" y1="138" x2="496" y2="154"/>
+    <line x1="436" y1="282" x2="496" y2="258"/>
+  </g>
+
+  <!-- cuchilla de tope de la cinta de bases -->
+  <rect x="440" y="286" width="8" height="46" rx="2" fill="#555555"/>
+  <text x="430" y="400" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">blade_on / _off</text>
+  <line x1="452" y1="388" x2="446" y2="334" stroke="#999999" stroke-width="1"/>
+
+  <!-- sensores -->
+  <g fill="#ff2a7f">
+    <circle cx="384" cy="82" r="6"/>
+    <circle cx="384" cy="338" r="6"/>
+    <circle cx="668" cy="338" r="6"/>
+    <circle cx="444" cy="148" r="5"/>
+    <circle cx="444" cy="270" r="5"/>
+    <circle cx="456" cy="342" r="5"/>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">
+    <text x="250" y="70">lid_at_place_FE</text>
+    <text x="500" y="176">lid_clampled</text>
+    <text x="500" y="244">base_clampled</text>
+    <text x="236" y="390">base_at_place_FE</text>
+    <text x="560" y="420">blade_pos_limit_on</text>
+    <text x="640" y="362">part_leaving_FE</text>
+  </g>
+  <g stroke="#ff2a7f" stroke-width="1" opacity="0.7">
+    <line x1="350" y1="74" x2="378" y2="80"/>
+    <line x1="497" y1="172" x2="449" y2="150"/>
+    <line x1="497" y1="240" x2="449" y2="268"/>
+    <line x1="350" y1="380" x2="378" y2="342"/>
+    <line x1="600" y1="408" x2="460" y2="346"/>
+  </g>
+
+  <!-- pick & place de dos ejes -->
+  <rect x="404" y="40" width="16" height="244" rx="3" fill="#dddddd" stroke="#999999" stroke-width="1.5"/>
+  <rect x="396" y="176" width="32" height="40" rx="4" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <path d="M402 216 v12 h6 v-6 M422 216 v12 h-6 v-6" fill="none" stroke="#555555" stroke-width="2.5"/>
+  <g stroke="#222222" stroke-width="1.6" fill="#222222">
+    <line x1="372" y1="186" x2="372" y2="146"/>
+    <polygon points="372,140 367,150 377,150"/>
+    <line x1="372" y1="206" x2="372" y2="246"/>
+    <polygon points="372,252 367,242 377,242"/>
+  </g>
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="15" fill="#b9770e">
+    <text x="190" y="196">pick &amp; place</text>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">
+    <text x="190" y="214">x_axis_on / _off</text>
+    <text x="190" y="230">z_axis_on / _off</text>
+    <text x="190" y="246">grab_on / _off</text>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">
+    <text x="190" y="262">x_movement_finish</text>
+    <text x="190" y="278">z_movement_finish</text>
+  </g>
+
+  <!-- salida -->
+  <polygon points="712,309 700,302 700,316" fill="#555555"/>
+  <text x="720" y="314" font-family="Liberation Sans, Arial, sans-serif" font-size="15" fill="#555555">pieza ensamblada</text>
+
+  <!-- pulsador de arranque -->
+  <circle cx="770" cy="70" r="16" fill="#3b8a3e" stroke="#2a6a2d" stroke-width="2"/>
+  <text x="794" y="66" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#555555">arranque</text>
+  <text x="794" y="82" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">start_on</text>
+
+  <!-- convenciones -->
+  <text x="660" y="150" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">orden del PLC</text>
+  <text x="660" y="168" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#444444">(evento controlable)</text>
+  <text x="660" y="196" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">sensor</text>
+  <text x="660" y="214" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#444444">(evento no controlable)</text>
+</svg>

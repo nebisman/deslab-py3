@@ -62,10 +62,8 @@ from .graphics.tikz import automaton2tikz, drawlatex
 from . import toolboxes
 from .toolboxes.diagnosis import *
 from .toolboxes.supervisory import *
+from .toolboxes.codegen import *
 
 # adding readwrite
 from . import readwrite
 from .readwrite.inputoutput import *
-
-# OpenPLC code generation
-from .codegen import generate_ST_OPENPLC

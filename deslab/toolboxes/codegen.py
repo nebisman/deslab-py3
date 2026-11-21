@@ -1,15 +1,20 @@
-"""Generate OpenPLC Structured Text directly from DESlab automata.
+"""Code generation toolbox: OpenPLC Structured Text from DESlab automata.
 
 Only :func:`generate_ST_OPENPLC` is public. Modeling, synthesis and drawing
 remain in their existing DESlab modules; this module adds no dependencies.
 """
+#    DESLab v2 Copyright (C) 2026 by
+#    Leonardo Bermeo <lbermeoc@unal.edu.co>
+#    Mateo Rodríguez <atarodriguezper@unal.edu.co>
+#    Edgar Sepulveda <ehsepulvedao@unal.edu.co>
+#    MIT license (see LICENSE).
 
 from collections import deque
 from pathlib import Path
 
-from .src.automatadefs import fsa
-from .src.algorithms import dfs, parallel, product
-from .toolboxes.supervisory import allevents, supcontrollable
+from ..src.automatadefs import fsa
+from ..src.algorithms import dfs, parallel, product
+from .supervisory import allevents, supcontrollable
 
 __all__ = ["generate_ST_OPENPLC"]
 

@@ -1,5 +1,6 @@
 """
-DESlab toolboxes: fault diagnosis and supervisory control.
+DESlab toolboxes: fault diagnosis, supervisory control and
+OpenPLC code generation.
 """
 #    DESLab v2 Copyright (C) 2026 by
 #    Leonardo Bermeo <lbermeoc@unal.edu.co>
@@ -9,3 +10,4 @@ DESlab toolboxes: fault diagnosis and supervisory control.
 
 from .diagnosis import *
 from .supervisory import *
+from .codegen import *
