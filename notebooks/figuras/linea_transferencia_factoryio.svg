@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="480" viewBox="0 0 960 480">
+  <!-- Línea de transferencia de Factory I/O (Transfer_line.factoryio), vista esquemática: M1 entrega
+       piezas al buffer B1 (posicionador y cuchilla), M2 las procesa, B2 las lleva a la unidad de
+       prueba TU; una pieza rechazada va por las cintas del reproceso y el pick & place la devuelve
+       a B1. Eventos controlables en negro, no controlables en rosado (#ff2a7f), el color que usa
+       DESlab para los no controlables. -->
+  <rect width="960" height="480" fill="#ffffff"/>
+
+  <!-- cintas del reproceso -->
+  <path d="M640 238 L640 83 L150 83 L150 112" fill="none" stroke="#c97f0b" stroke-width="30" stroke-linejoin="round"/>
+  <path d="M640 238 L640 83 L150 83 L150 112" fill="none" stroke="#fde3b5" stroke-width="26" stroke-linejoin="round"/>
+  <path d="M640 228 L640 83 L150 83 L150 106" fill="none" stroke="#c97f0b" stroke-width="1.2" stroke-dasharray="6,6"/>
+  <g fill="#555555">
+    <polygon points="396,83 408,76 408,90"/>
+  </g>
+  <text x="250" y="56" font-family="Liberation Sans, Arial, sans-serif" font-size="13" fill="#777777">cintas del reproceso (se encienden con el brazo de TU)</text>
+
+  <!-- pick & place -->
+  <rect x="112" y="118" width="76" height="52" rx="5" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <path d="M138 170 v12 h6 v-6 M162 170 v12 h-6 v-6" fill="none" stroke="#555555" stroke-width="2.5"/>
+  <g stroke="#555555" stroke-width="1.6" fill="#555555">
+    <line x1="162" y1="190" x2="160" y2="234"/>
+    <polygon points="160,244 155,233 165,233"/>
+  </g>
+  <circle cx="150" cy="104" r="5" fill="#ff2a7f"/>
+  <text x="40" y="108" font-family="Liberation Mono, Courier New, monospace" font-size="11" fill="#ff2a7f">Piece-at-PyP</text>
+  <text x="208" y="132" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#b9770e">pick &amp; place (devuelve la pieza a B1)</text>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="11">
+    <text x="208" y="150" fill="#222222">Z-ON / -OFF   GRAB-ON / -OFF</text>
+    <text x="208" y="166" fill="#222222">Rotate+-ON / -OFF   Rotate--ON / -OFF</text>
+    <text x="208" y="182" fill="#ff2a7f">Moving-Z   Rotating</text>
+  </g>
+
+  <!-- cintas principales -->
+  <g fill="#fde3b5" stroke="#c97f0b" stroke-width="2">
+    <rect x="56" y="250" width="74" height="34" rx="17"/>
+    <rect x="140" y="250" width="220" height="34" rx="17"/>
+    <rect x="484" y="250" width="76" height="34" rx="17"/>
+    <rect x="570" y="250" width="190" height="34" rx="17"/>
+  </g>
+  <g stroke="#c97f0b" stroke-width="1.2" stroke-dasharray="6,6">
+    <line x1="72" y1="267" x2="114" y2="267"/>
+    <line x1="158" y1="267" x2="342" y2="267"/>
+    <line x1="500" y1="267" x2="544" y2="267"/>
+    <line x1="588" y1="267" x2="742" y2="267"/>
+  </g>
+
+  <!-- emisor de M1 -->
+  <rect x="8" y="246" width="42" height="42" rx="4" fill="#eeeeee" stroke="#999999" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="10" fill="#555555" text-anchor="middle">
+    <text x="29" y="264">emisor</text><text x="29" y="277">de M1</text>
+  </g>
+
+  <!-- M2 -->
+  <rect x="372" y="232" width="100" height="70" rx="6" fill="#d6e4f0" stroke="#2e6f9e" stroke-width="2"/>
+  <g font-family="Liberation Sans, Arial, sans-serif" fill="#2e6f9e" text-anchor="middle">
+    <text x="422" y="262" font-size="22">M2</text>
+    <text x="422" y="280" font-size="10">centro de</text>
+    <text x="422" y="292" font-size="10">mecanizado</text>
+  </g>
+
+  <!-- posicionador de B1: pinza y cuchilla -->
+  <rect x="210" y="288" width="50" height="10" rx="2" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+  <rect x="304" y="242" width="8" height="50" rx="2" fill="#555555"/>
+
+  <!-- brazo de TU -->
+  <rect x="626" y="236" width="28" height="12" rx="2" fill="#f5a01a" stroke="#c97f0b" stroke-width="2"/>
+
+  <!-- piezas -->
+  <g fill="#7fb3d5" stroke="#2e6f9e" stroke-width="1.5">
+    <rect x="84" y="257" width="20" height="20" rx="3"/>
+    <rect x="276" y="257" width="20" height="20" rx="3"/>
+    <rect x="510" y="257" width="20" height="20" rx="3"/>
+  </g>
+
+  <!-- sensor de visión -->
+  <rect x="586" y="230" width="16" height="12" rx="2" fill="#ff2a7f"/>
+
+  <!-- salida -->
+  <polygon points="768,252 816,262 816,272 768,282" fill="#dddddd" stroke="#999999" stroke-width="1.5"/>
+  <polygon points="836,267 824,260 824,274" fill="#555555"/>
+  <text x="846" y="272" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#555555">salida</text>
+
+  <!-- sensores -->
+  <g fill="#ff2a7f">
+    <circle cx="124" cy="240" r="5"/>
+    <circle cx="220" cy="240" r="5"/>
+    <circle cx="352" cy="240" r="5"/>
+    <circle cx="556" cy="240" r="5"/>
+    <circle cx="744" cy="240" r="5"/>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="11" fill="#ff2a7f">
+    <text x="60" y="224">2, M1-arrived</text>
+    <text x="176" y="224">Piece-at-buffer</text>
+    <text x="300" y="224">Buffer-out</text>
+    <text x="428" y="224">Piece-at-TU, Piece-at-review</text>
+    <text x="700" y="224">Piece-out</text>
+  </g>
+  <text x="576" y="208" font-family="Liberation Sans, Arial, sans-serif" font-size="11" fill="#777777">visión</text>
+
+  <!-- nombres de las partes -->
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="13" fill="#b9770e">
+    <text x="40" y="306">estación M1</text>
+    <text x="156" y="314">buffer B1</text>
+    <text x="508" y="306">B2</text>
+    <text x="600" y="306">unidad de prueba TU</text>
+  </g>
+
+  <!-- órdenes y eventos de cada parte -->
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="11">
+    <text x="20" y="328" fill="#222222">M1-Conveyor-OFF</text>
+    <text x="20" y="344" fill="#ff2a7f">M1-Conveyor-ON</text>
+    <text x="156" y="332" fill="#222222">BUFFER-Conveyor-ON / -OFF</text>
+    <text x="156" y="348" fill="#222222">Clamp-on / -off</text>
+    <text x="156" y="364" fill="#222222">BLADE-ON / -OFF</text>
+    <text x="156" y="380" fill="#222222">BLADE-LIMIT</text>
+    <text x="156" y="396" fill="#ff2a7f">Clamped</text>
+    <text x="156" y="412" fill="#ff2a7f">Piece-reprocessed</text>
+    <text x="378" y="328" fill="#222222">M2-OFF</text>
+    <text x="378" y="344" fill="#ff2a7f">M2-ON  M2-Bussy</text>
+    <text x="378" y="360" fill="#ff2a7f">M2-END</text>
+    <text x="600" y="328" fill="#222222">TU-Conveyor-OFF</text>
+    <text x="600" y="344" fill="#ff2a7f">TU-Conveyor-ON</text>
+    <text x="600" y="360" fill="#222222">TU-ARM-ON / -OFF</text>
+    <text x="600" y="376" fill="#ff2a7f">Piece-right / Piece-wrong</text>
+    <text x="440" y="400" fill="#222222">BUFFER2-Conveyor-ON / -OFF</text>
+  </g>
+  <line x1="522" y1="389" x2="522" y2="312" stroke="#999999" stroke-width="1"/>
+
+  <!-- pulsador de arranque -->
+  <circle cx="858" cy="74" r="16" fill="#3b8a3e" stroke="#2a6a2d" stroke-width="2"/>
+  <text x="882" y="70" font-family="Liberation Sans, Arial, sans-serif" font-size="13" fill="#555555">arranque</text>
+  <text x="882" y="86" font-family="Liberation Mono, Courier New, monospace" font-size="11" fill="#ff2a7f">start</text>
+
+  <!-- convenciones -->
+  <text x="720" y="414" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">orden del PLC</text>
+  <text x="720" y="430" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#444444">(evento controlable)</text>
+  <text x="720" y="452" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">sensor u orden observada</text>
+  <text x="720" y="468" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#444444">(evento no controlable)</text>
+</svg>

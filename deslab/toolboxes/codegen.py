@@ -145,13 +145,17 @@ class _STEmitter:
                     seen.add(target)
                     pending.append(target)
 
-    def __init__(self, output_dir, event_order):
+    def __init__(self, output_dir, event_order, state_order=None, transition_order=None):
         self.output_dir = Path(output_dir)
         self.models = {}
         self.dict_events = {event: index for index, event in enumerate(event_order or ())}
         self.controllable = {}
         self.numbering = {}
         self.event_lists = {}
+        # keyed by id(model): requested numbering and transition listing
+        self.state_order = state_order or {}
+        self.transition_order = transition_order or {}
+        self.transition_lists = {}
 
     def _prepare_emission(self, name):
         model = self.models[name]
@@ -159,7 +163,26 @@ class _STEmitter:
         ordered = list(self._breadth_first_states(model))
         if set(ordered) != model.X:
             raise ValueError(f"{name!r} must have only reachable states")
+        source = self.state_order.get(id(model))
+        if source is not None:
+            if hasattr(source, "Gamma"):
+                self._require_deterministic(f"state_order source of {name!r}", source)
+                ordered = [state for state in self._breadth_first_states(source) if state in model.X]
+            else:
+                ordered = list(source)
+            if len(ordered) != len(model.X) or set(ordered) != model.X:
+                raise ValueError(f"state_order of {name!r} must list each of its states once")
+            if ordered[0] not in model.X0:
+                raise ValueError(f"state_order of {name!r} must start with its initial state")
         self.numbering[name] = {state: index for index, state in enumerate(ordered)}
+        listed = self.transition_order.get(id(model))
+        if listed is not None:
+            listed = [tuple(transition) for transition in listed]
+            existing = {(state, event, model.delta(state, event))
+                        for state in model.X for event in model.Gamma(state)}
+            if len(listed) != len(set(listed)) or set(listed) != existing:
+                raise ValueError(f"transition_order of {name!r} must list each of its transitions once")
+            self.transition_lists[name] = listed
         enabled = dict.fromkeys(event for _, event, _, _ in self._transitions(name))
         controlled = self.controllable.get(name, model.Sigcon)
         self.event_lists[name] = (
@@ -174,14 +197,26 @@ class _STEmitter:
         model = self.models[name]
         numbering = self.numbering[name]
         controlled = self.controllable.get(name, model.Sigcon)
-        for state in numbering:
-            for event in self._ordered_events(model, state):
-                yield numbering[state], event, numbering[model.delta(state, event)], event in controlled
+        listed = self.transition_lists.get(name)
+        if listed is None:
+            pairs = ((state, event) for state in numbering for event in self._ordered_events(model, state))
+        else:
+            pairs = ((state, event) for state, event, _ in listed)
+        for state, event in pairs:
+            yield numbering[state], event, numbering[model.delta(state, event)], event in controlled
 
     def _states(self, name):
         model = self.models[name]
+        listed = self.transition_lists.get(name)
+        if listed is None:
+            for state, index in self.numbering[name].items():
+                yield index, self._ordered_events(model, state)
+            return
+        events = {state: [] for state in self.numbering[name]}
+        for state, event, _ in listed:
+            events[state].append(event)
         for state, index in self.numbering[name].items():
-            yield index, self._ordered_events(model, state)
+            yield index, events[state]
 
     @staticmethod
     def _condition(mapping):
@@ -531,7 +566,8 @@ class _STEmitter:
 
 def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controller",
                         Mask=None, Isolated=None, initial="null", *,
-                        output_dir="ST_Generated", event_order=None):
+                        output_dir="ST_Generated", event_order=None,
+                        state_order=None, transition_order=None):
     """Generate, save and return an OpenPLC Structured Text program.
 
     Parameters
@@ -572,6 +608,18 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
         Branch ordering; unspecified events follow in string order. Competing
         controllable choices use the emitted random selector, so this is not
         a deterministic scheduling policy.
+    state_order : dict, optional, keyword-only
+        ST state numbering of selected supervisors or auxiliary automata. Each
+        value is the sequence of the automaton's states, starting with the
+        initial one (number zero), or another automaton whose breadth-first
+        order the states follow, such as the composition a supervisor was
+        synthesized from. Other automata are numbered breadth-first from
+        their initial state.
+    transition_order : dict, optional, keyword-only
+        For selected supervisors or auxiliary automata, the list of all their
+        ``(state, event, next_state)`` transitions in the order their guards
+        and output branches are written. By default each state's transitions
+        follow the state numbering and ``event_order``.
 
     Returns
     -------
@@ -595,7 +643,16 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
         raise ValueError("Supply one plant per supervisor, in the same order")
     if Isolated and len(Isolated) != 2:
         raise ValueError("Isolated must contain [automata, event_pairs]")
-    emitter = _STEmitter(output_dir, event_order)
+    targets = {id(model) for model in (*supervisors, *(Isolated[0] if Isolated else ()))}
+
+    def by_identity(option, label):
+        option = dict(option or {})
+        if any(id(model) not in targets for model in option):
+            raise ValueError(f"{label} keys must be supervisors or auxiliary automata")
+        return {id(model): value for model, value in option.items()}
+
+    emitter = _STEmitter(output_dir, event_order, by_identity(state_order, "state_order"),
+                         by_identity(transition_order, "transition_order"))
     supervisor_names = []
     plant_names = []
     for index, supervisor in enumerate(supervisors):

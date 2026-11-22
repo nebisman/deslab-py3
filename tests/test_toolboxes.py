@@ -88,6 +88,20 @@ def test_supcontrollable_algorithms_agree(rng):
         assert Kg <= H
 
 
+def test_supcontrollable_keeps_the_uncontrollable_events():
+    """with a prefix closed specification the language algorithm uses Sigma*, whose events
+    are all controllable by default; the supervisor keeps the classification of H and G"""
+    G = fsa([0, 1, 2], ['on', 'fed', 'off', 'start'],
+            [(0, 'on', 1), (1, 'fed', 2), (2, 'off', 0), (0, 'start', 0), (1, 'start', 1), (2, 'start', 2)],
+            [0], [0, 1, 2], Sigcon=['on', 'off'])
+    E = fsa([0, 1], ['start', 'on'], [(0, 'start', 1), (1, 'on', 1), (1, 'start', 1)],
+            [0], [0, 1], Sigcon=['on'])
+    H = G // E
+    assert ispfclosed(H)
+    for K in (supcontrollable(H, G), supcontrollablepfclosed(H, G), supcontrollablegeneral(H, G)):
+        assert K.Sigcon == {'on', 'off'}
+
+
 def test_supcontrollable_violation_after_trim():
     """ two machines and an AGV: trim deletes the blocking states 6
     and 7, and then state 5 violates controllability (its

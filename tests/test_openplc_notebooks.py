@@ -1,10 +1,10 @@
 """Checks for the notebooks in notebooks/factory_io that generate OpenPLC ST.
 
-The notebooks' own cells are executed (without the Colab setup and drawings). The small
-factory programs (with one supervisor, and with two modular supervisors and breakdowns) and
-the transfer line program are simulated scan by scan with stations that follow the notebooks'
-interface contracts; the assembly line program must equal the one generated with TCT by
-TCT_Proyect.
+The notebooks' own cells are executed (without the Colab setup and drawings). The program of
+the small factory with one supervisor is simulated scan by scan with machines that follow the
+notebook's contract. The programs of the small factory with breakdowns, the transfer line and
+the assembly line must equal the ones generated with TCT by TCT_Proyect, and every self-loop
+of their models must be needed.
 """
 
 import hashlib
@@ -164,269 +164,171 @@ def test_pequena_factoria_program(pequena_factoria):
 
 
 # ---------------------------------------------------------------------------------------
-# Small factory with breakdowns: two modular supervisors
+# Small factory with breakdowns and transfer line: same programs as TCT_Proyect
 # ---------------------------------------------------------------------------------------
 
-class Machine:
-    """Machine i of the notebook's contract.
+# SHA-256 of the programs generated with TCT by TCT_Proyect/Small_factory.py and by
+# TCT_Proyect/Transfer_line.py (with its generate_ST_OPENPLC call taken out of the comment).
+# TCT visits the requests shared by the transfer line supervisors in Python set order, so it
+# writes one of two programs depending on PYTHONHASHSEED; DESlab's is the one of PYTHONHASHSEED=2.
+TCT_SMALL_FACTORY_SHA256 = "582689a29b0551e9d76f1f26906075c45b790cdd5defcfc1e97696c72b687b40"
+TCT_TRANSFER_LINE_SHA256 = "fd43dd2a774fb4144f180e979153a34896969d0e77fdd498129cc106d6a26fcb"
 
-    It starts when ready (Fin and Falla low) and Cmd is high, and reports Ocup=1. At the end
-    of the cycle it drops Ocup and either pulses Fin for `pulse` scans or breaks down: Falla
-    stays high until the PLC orders the reset (Rep=1), which takes `reset` scans.
-    """
-
-    def __init__(self, rng, cycle, reset, pulse, p_fail):
-        self.rng, self.cycle, self.reset, self.pulse, self.p_fail = rng, cycle, reset, pulse, p_fail
-        self.state, self.count, self.pulse_left = "ready", 0, 0
-        self.ocup = self.fin = self.falla = False
-
-    def step(self, cmd, rep, uncontrollable_allowed):
-        event = None
-        if self.pulse_left:
-            self.pulse_left -= 1
-            self.fin = self.pulse_left > 0
-        if self.state == "ready" and cmd and not self.fin and not self.falla:
-            self.state, self.count, self.ocup, event = "working", self.rng.randint(*self.cycle), True, "start"
-        elif self.state == "working":
-            self.count -= 1
-            if self.count <= 0 and not uncontrollable_allowed:
-                self.count = 1  # the notebook assumes distinct scans for fins and breakdowns
-            elif self.count <= 0:
-                self.ocup = False
-                if self.rng.random() < self.p_fail:
-                    self.state, self.falla, event = "broken", True, "fail"
-                else:
-                    self.state, self.fin, self.pulse_left, event = "ready", True, self.pulse, "finish"
-        elif self.state == "broken" and rep:
-            self.state, self.count = "resetting", self.rng.randint(*self.reset)
-        elif self.state == "resetting":
-            self.count -= 1
-            if self.count <= 0:
-                self.state, self.falla = "ready", False
-        return event
+# supervisor: (plant components, specifications), as in the notebooks
+SMALL_FACTORY_MODELS = {"SUP": (["model_M1", "model_M2"], ["REQ_Buffer", "REQ_start", "REQ_repair"]),
+                        "sup_BA": (["B_A"], ["start"])}
+TRANSFER_LINE_MODELS = {"sup_M1": (["Conveyor_M1"], ["M1_piece"]),
+                        "sup_B1": (["Conveyor_buffer", "Clamp", "Blade"], ["event_2", "Buffer_join", "Camp_REQ"]),
+                        "sup_B2": (["Conveyor_buffer2"], ["Buffer2_join"]),
+                        "sup_TU": (["Conveyor_TU", "ARM_TU"], ["TU_Function"]),
+                        "sup_2": (["M1_REQ", "M2_REQ", "TU_REQ"], ["start", "B1SP"]),
+                        "sup2_2": (["M2_REQ", "TU_REQ"], ["B2SP"])}
 
 
-OUTPUTS = ("Cmd_M1", "Cmd_M2", "Rep_M1", "Rep_M2")
+def size(S):
+    return len(S), sum(len(S.Gamma(x)) for x in S.X)
+
+
+def sha256(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def compose(models):
+    result = models[0]
+    for model in models[1:]:
+        result = result // model
+    return result
+
+
+def same_language(S, R):
+    if S.empty or R.empty:
+        return S.empty == R.empty
+    S = deslab.invproj(S, R.Sigma) if S.Sigma != R.Sigma else S
+    R = deslab.invproj(R, S.Sigma) if R.Sigma != S.Sigma else R
+    return deslab.are_langequiv(S, R)
+
+
+def rerun(names, cell, **changes):
+    """Execute a generation cell again with some models replaced."""
+    namespace = {**names, **changes}
+    exec(compile(names["cells"][cell], cell, "exec"), namespace)
+    return namespace["st"]
+
+
+def check_self_loops(names, table):
+    """Every uncontrollable event of a specification is in its plant; every sensor self-loop of
+    a specification changes its supervisor; every event that a component has only as self-loops
+    reaches the plant only through it and is used by a specification of that plant."""
+    models = {m: names[m] for components, specs in table.values() for m in components + specs}
+
+    def supervisor(name, models):
+        components, specs = table[name]
+        plant = compose([models[c] for c in components])
+        return deslab.supcontrollable(compose([plant] + [models[s] for s in specs]), plant)
+
+    for name, (components, specs) in table.items():
+        plant = compose([models[c] for c in components])
+        assert same_language(supervisor(name, models), names[name]), name
+        for spec in specs:
+            assert models[spec].Sigma - models[spec].Sigcon <= plant.Sigma, (name, spec)
+
+    loops = 0
+    for spec in {s for _, specs in table.values() for s in specs}:
+        E = models[spec]
+        affected = [n for n, (_, specs) in table.items() if spec in specs]
+        for x, y, e in E.Graph.edges(keys=True):
+            if x == y and e not in E.Sigcon:
+                loops += 1
+                changed = {**models, spec: E.deletetransition((x, e, x))}
+                assert any(not same_language(supervisor(n, changed), names[n]) for n in affected), (spec, x, e)
+
+    shared = 0
+    for component in {c for components, _ in table.values() for c in components}:
+        C = models[component]
+        edges = list(C.Graph.edges(keys=True))
+        for e in {e for x, y, e in edges if x == y}:
+            if any(x != y for x, y, f in edges if f == e):
+                continue
+            shared += 1
+            affected = [n for n, (components, _) in table.items() if component in components]
+            reduced = {**models, component: C.deletevent(e)}
+            assert any(e not in compose([reduced[c] for c in table[n][0]]).Sigma
+                       and any(e in models[s].Sigma for s in table[n][1]) for n in affected), (component, e)
+    return loops, shared
 
 
 @pytest.fixture
 def small_factory(tmp_path, monkeypatch):
     names = run_cells("LCS_modular_control_small_factory_openplc.ipynb", "sf",
-                      (5, 7, 10, 12, 14), tmp_path, monkeypatch)
-    events = {key: names[key] for key in ("e1", "t1", "f1", "r1", "e2", "t2", "f2", "r2")}
-    return names["SUP1"], names["SUP2"], events, names["st"]
+                      (5, 7, 9, 11, 13, 15, 17), tmp_path, monkeypatch)
+    names["cells"] = {cell["id"]: "".join(cell["source"]) for cell in json.loads(
+        (NOTEBOOKS / "LCS_modular_control_small_factory_openplc.ipynb").read_text(encoding="utf-8"))["cells"]}
+    names["tmp_path"] = tmp_path
+    return names
 
 
-@pytest.mark.parametrize("seed, cycle, reset, pulse, p_fail", [
-    (0, (5, 30), (1, 3), 2, 0.3),
-    (1, (5, 8), (1, 2), 1, 0.5),
-    (2, (10, 60), (1, 4), 3, 0.1),
-    (3, (5, 6), (1, 1), 1, 0.0),
-    (4, (6, 9), (1, 4), 1, 0.6),
-])
-def test_small_factory_st_follows_both_supervisors(small_factory, seed, cycle, reset, pulse, p_fail):
-    sup1, sup2, events, source = small_factory
-    rng = random.Random(seed)
-    plc = FactoryST(source)
-    machines = [Machine(rng, cycle, reset, pulse, p_fail) for _ in range(2)]
-    supervisors = (sup1, sup2)
-    expected = [next(iter(S.X0)) for S in supervisors]
-    numbering = [{}, {}]
-    outputs = dict.fromkeys(OUTPUTS, False)
-    buffer = 0
-    m2_waiting_reset = False
-    count = dict.fromkeys(("start", "finish", "fail"), 0)
-
-    for scan in range(1000):
-        uncontrollable = None
-        for i, machine in enumerate(machines, 1):
-            event = machine.step(outputs[f"Cmd_M{i}"], outputs[f"Rep_M{i}"], uncontrollable is None)
-            if event:
-                count[event] += 1
-            if event == "start" and i == 2:
-                assert buffer > 0, (scan, "M2 started with an empty buffer")
-                buffer -= 1
-            elif event in ("finish", "fail"):
-                uncontrollable = (i, event)
-                assert not outputs[f"Cmd_M{i}"], (scan, i, "start command still high at the end of the cycle")
-                if event == "finish" and i == 1:
-                    buffer += 1
-                    assert buffer <= 2, (scan, "buffer overflow")
-                if event == "fail" and i == 2:
-                    m2_waiting_reset = True
-
-        inputs = {}
-        for i, machine in enumerate(machines, 1):
-            inputs.update({f"Ocup_M{i}": machine.ocup, f"Fin_M{i}": machine.fin, f"Falla_M{i}": machine.falla})
-        plc.random_value = rng.randrange(1 << 15)
-        plc.scan(**inputs)
-        new = {key: bool(plc.values[key]) for key in OUTPUTS}
-
-        # Abstract events of this scan: the uncontrollable one first, then the new command.
-        abstract = []
-        if uncontrollable:
-            i, event = uncontrollable
-            abstract.append(events[("t" if event == "finish" else "f") + str(i)])
-        rising = [key for key in OUTPUTS if new[key] and not outputs[key]]
-        assert len(rising) <= 1, (scan, "two commands in one scan", rising)
-        for key in rising:
-            i = int(key[-1])
-            if key.startswith("Cmd"):
-                assert machines[i - 1].state != "working", (scan, i, "start command while working")
-                abstract.append(events[f"e{i}"])
-            else:
-                assert machines[i - 1].state == "broken", (scan, i, "reset command without a breakdown")
-                if i == 1:
-                    assert not m2_waiting_reset, (scan, "M1 reset while M2 waits for its reset")
-                m2_waiting_reset = m2_waiting_reset and i != 2
-                abstract.append(events[f"r{i}"])
-        for event in abstract:
-            for k, supervisor in enumerate(supervisors):
-                assert event in supervisor.Gamma(expected[k]), (scan, k, expected[k], event)
-                expected[k] = supervisor.delta(expected[k], event)
-        for k in range(2):
-            actual = plc.values["state"][k]
-            assert numbering[k].setdefault(actual, expected[k]) == expected[k], (scan, k, "ST state")
-        assert expected[0][:2] == expected[1][:2], (scan, "supervisors disagree on the plant state")
-        outputs = new
-
-    assert count["start"] >= 30 and count["finish"] >= 25
-    if p_fail:
-        assert count["fail"] >= 5
+def test_small_factory_matches_tct(small_factory):
+    names = small_factory
+    assert size(names["SUP"]) == (36, 119) and size(names["sup_BA"]) == (5, 9)
+    # REQ_repair's repair events are not plant events: the supervisor never uses them
+    assert {e for x in names["SUP"].X for e in names["SUP"].Gamma(x)} == \
+        names["SUP"].Sigma - {"M1-REPAIR-OUT-ON", "M2-REPAIR-OUT-ON"}
+    source = names["st"]
+    assert (names["tmp_path"] / "ST_Generated" / "Small_factory.st").read_text(encoding="utf-8") == source
+    assert sha256(source) == TCT_SMALL_FACTORY_SHA256
 
 
-def test_small_factory_program_has_no_coordinator(small_factory):
-    sup1, sup2, _, source = small_factory
-    assert deslab.nonconflict(sup1, sup2)
-    assert "_C :" not in source
-    assert len(source.splitlines()) == 453
+def test_small_factory_self_loops_are_all_needed(small_factory):
+    assert check_self_loops(small_factory, SMALL_FACTORY_MODELS) == (3, 2)
 
 
-# ---------------------------------------------------------------------------------------
-# Transfer line: two conflicting supervisors and the coordinator added by the generator
-# ---------------------------------------------------------------------------------------
-
-class Station:
-    """M1, M2 or TU of the notebook's contract: starts when ready and Cmd is high (Ocup=1);
-    at the end drops Ocup and pulses one of its finish inputs for `pulse` scans."""
-
-    def __init__(self, rng, cycle, pulse, finishes, weights):
-        self.rng, self.cycle, self.pulse, self.finishes, self.weights = rng, cycle, pulse, finishes, weights
-        self.state, self.count, self.ocup = "ready", 0, False
-        self.pulses = dict.fromkeys(finishes, 0)
-
-    def step(self, cmd, uncontrollable_allowed):
-        event = None
-        for name in self.pulses:
-            self.pulses[name] = max(0, self.pulses[name] - 1)
-        if self.state == "ready" and cmd and not any(self.pulses.values()):
-            self.state, self.count, self.ocup, event = "working", self.rng.randint(*self.cycle), True, "start"
-        elif self.state == "working":
-            self.count -= 1
-            if self.count <= 0 and not uncontrollable_allowed:
-                self.count = 1  # the notebook assumes distinct scans for finishes
-            elif self.count <= 0:
-                event = self.rng.choices(self.finishes, self.weights)[0]
-                self.state, self.ocup, self.pulses[event] = "ready", False, self.pulse + 1
-        return event
+def test_small_factory_self_loops_left_out_do_not_change_the_program(small_factory):
+    names = small_factory
+    M1 = names["M1"]
+    for e in ("M1-ON", "M1-Bussy", "M1-END"):        # the self-loops of TCT's M1
+        for x in sorted(M1.X):
+            if e not in M1.Gamma(x):
+                M1 = M1.addselfloop(x, e)
+    auxiliary = [M1 if A is names["M1"] else A for A in names["auxiliares"]]
+    assert sha256(rerun(names, "sf-17", auxiliares=auxiliary)) == TCT_SMALL_FACTORY_SHA256
 
 
 @pytest.fixture
 def transfer_line(tmp_path, monkeypatch):
     names = run_cells("LCS_modular_control_transfer_line_openplc.ipynb", "tl",
-                      (5, 7, 10, 12, 14), tmp_path, monkeypatch)
-    events = {key: names[key] for key in ("e1", "t1", "e2", "t2", "e3", "t3", "r")}
-    return names["SUP1"], names["SUP2"], names["SUP_MONO"], events, names["st"]
+                      (5, 7, 9, 11, 13, 15, 17), tmp_path, monkeypatch)
+    names["cells"] = {cell["id"]: "".join(cell["source"]) for cell in json.loads(
+        (NOTEBOOKS / "LCS_modular_control_transfer_line_openplc.ipynb").read_text(encoding="utf-8"))["cells"]}
+    names["tmp_path"] = tmp_path
+    return names
 
 
-@pytest.mark.parametrize("seed, cycle, pulse, p_reject", [
-    (0, (5, 20), 2, 0.3),
-    (1, (5, 6), 1, 0.5),
-    (2, (8, 40), 3, 0.1),
-    (3, (5, 9), 1, 0.0),
-    (4, (5, 12), 2, 0.8),
-])
-def test_transfer_line_st_behaves_like_the_monolithic_supervisor(transfer_line, seed, cycle, pulse, p_reject):
-    sup1, sup2, mono, events, source = transfer_line
-    rng = random.Random(seed)
-    plc = FactoryST(source)
-    stations = {"M1": Station(rng, cycle, pulse, ["Fin_M1"], [1]),
-                "M2": Station(rng, cycle, pulse, ["Fin_M2"], [1]),
-                "TU": Station(rng, cycle, pulse, ["Acepta", "Rechaza"], [1 - p_reject, p_reject])}
-    command = {"M1": "Cmd_M1", "M2": "Cmd_M2", "TU": "Cmd_TU"}
-    start_event = {"Cmd_M1": events["e1"], "Cmd_M2": events["e2"], "Cmd_TU": events["e3"]}
-    finish_event = {"Fin_M1": events["t1"], "Fin_M2": events["t2"],
-                    "Acepta": events["t3"], "Rechaza": events["r"]}
-    # the coordinator's CASE block is the one that writes the _C flags
-    coordinator = int(re.search(r"CASE state\[(\d+)\] OF\s+\d+:\s+\w+_C\[", source)[1])
-    supervisors = (sup1, sup2)
-    expected = [next(iter(S.X0)) for S in supervisors]
-    x_mono = next(iter(mono.X0))
-    numbering = [{}, {}]
-    coordinator_states = {}
-    outputs = dict.fromkeys(command.values(), False)
-    b1 = b2 = 0
-    count = {"start": 0, "Acepta": 0, "Rechaza": 0}
-
-    for scan in range(1000):
-        uncontrollable = None
-        for name, station in stations.items():
-            event = station.step(outputs[command[name]], uncontrollable is None)
-            if event == "start":
-                count["start"] += 1
-                if name == "M2":
-                    assert b1 == 1, (scan, "M2 started with B1 empty")
-                    b1 -= 1
-                elif name == "TU":
-                    assert b2 == 1, (scan, "TU started with B2 empty")
-                    b2 -= 1
-            elif event:
-                uncontrollable = event
-                assert not outputs[command[name]], (scan, name, "start command still high at the end")
-                if event in ("Fin_M1", "Rechaza"):
-                    b1 += 1
-                    assert b1 <= 1, (scan, "B1 overflow")
-                elif event == "Fin_M2":
-                    b2 += 1
-                    assert b2 <= 1, (scan, "B2 overflow")
-                count[event] = count.get(event, 0) + 1
-
-        plc.random_value = rng.randrange(1 << 15)
-        plc.scan(Ocup_M1=stations["M1"].ocup, Ocup_M2=stations["M2"].ocup, Ocup_TU=stations["TU"].ocup,
-                 Fin_M1=stations["M1"].pulses["Fin_M1"] > 0, Fin_M2=stations["M2"].pulses["Fin_M2"] > 0,
-                 Acepta=stations["TU"].pulses["Acepta"] > 0, Rechaza=stations["TU"].pulses["Rechaza"] > 0)
-        new = {key: bool(plc.values[key]) for key in outputs}
-
-        abstract = [finish_event[uncontrollable]] if uncontrollable else []
-        rising = [key for key in outputs if new[key] and not outputs[key]]
-        assert len(rising) <= 1, (scan, "two commands in one scan", rising)
-        for key in rising:
-            name = next(n for n, c in command.items() if c == key)
-            assert stations[name].state != "working", (scan, name, "start command while working")
-            abstract.append(start_event[key])
-        for event in abstract:
-            assert event in mono.Gamma(x_mono), (scan, "trace leaves the monolithic language", x_mono, event)
-            x_mono = mono.delta(x_mono, event)
-            for k, supervisor in enumerate(supervisors):
-                assert event in supervisor.Gamma(expected[k]), (scan, k, expected[k], event)
-                expected[k] = supervisor.delta(expected[k], event)
-        for k in range(2):
-            actual = plc.values["state"][k]
-            assert numbering[k].setdefault(actual, expected[k]) == expected[k], (scan, k, "ST state")
-        actual = plc.values["state"][coordinator]
-        assert coordinator_states.setdefault(x_mono, actual) == actual, (scan, "coordinator state")
-        outputs = new
-
-    assert count["start"] >= 30 and count["Acepta"] >= 3
-    if p_reject:
-        assert count["Rechaza"] >= 1
+def test_transfer_line_matches_tct(transfer_line):
+    names = transfer_line
+    assert [size(names[n]) for n in TRANSFER_LINE_MODELS] == \
+        [(4, 7), (33, 189), (5, 17), (9, 50), (9, 24), (6, 17)]
+    assert not deslab.nonconflict(names["sup_2"], names["sup2_2"])
+    source = names["st"]
+    assert "aux : BOOL := 0;" in source and "INTERN_1_C[1] := 1;" in source
+    assert (names["tmp_path"] / "ST_Generated" / "transfer_line.st").read_text(encoding="utf-8") == source
+    assert sha256(source) == TCT_TRANSFER_LINE_SHA256
+    # BLADE_LIMIT is controllable in Transfer_line.py, so the program writes that input
+    assert "GD_IN_4 := 1;" in source
 
 
-def test_transfer_line_program_includes_the_coordinator(transfer_line):
-    sup1, sup2, mono, _, source = transfer_line
-    assert not deslab.nonconflict(sup1, sup2)
-    assert "aux : BOOL := 0;" in source and "INTERN_0_C[1] := 1;" in source
-    assert len(source.splitlines()) == 366
+def test_transfer_line_self_loops_are_all_needed(transfer_line):
+    assert check_self_loops(transfer_line, TRANSFER_LINE_MODELS) == (84, 16)
+
+
+def test_transfer_line_self_loops_left_out_do_not_change_the_program(transfer_line):
+    names = transfer_line
+    TU_Function = names["TU_Function"]
+    for x in range(1, 9):                                # TCT's TU_Conveyor_ON self-loops
+        TU_Function = TU_Function.addselfloop(x, "TU-Conveyor-ON")
+    sup_TU = names["local"](names["P_TU"], TU_Function, "sup_TU")
+    assert same_language(sup_TU, names["sup_TU"])
+    auxiliary = [sup_TU if A is names["sup_TU"] else A for A in names["auxiliares"]]
+    assert sha256(rerun(names, "tl-17", auxiliares=auxiliary)) == TCT_TRANSFER_LINE_SHA256
 
 
 # ---------------------------------------------------------------------------------------
@@ -435,10 +337,6 @@ def test_transfer_line_program_includes_the_coordinator(transfer_line):
 
 # SHA-256 of ST_Generated/Assembly_line.st generated with TCT by TCT_Proyect/Assembly_line.py
 TCT_ASSEMBLY_LINE_SHA256 = "b2ccd55d83dccfa7e500059f84b5938e015a8dbc4ffaca21bd02a1f73d5f3fbc"
-
-
-def size(S):
-    return len(S), sum(len(S.Gamma(x)) for x in S.X)
 
 
 @pytest.fixture

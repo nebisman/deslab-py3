@@ -122,18 +122,23 @@ la línea de transferencia y la línea de ensamble:
   el caso de introducción. Explica cómo se definen el contrato con las máquinas, el diccionario
   `actuators` y los autómatas de rearme, revisa el programa línea por línea contra el supervisor
   y sigue su ejecución scan por scan.
-- [Control modular de la pequeña fábrica con averías](notebooks/factory_io/LCS_modular_control_small_factory_openplc.ipynb):
-  dos supervisores modulares que actúan a la vez, con peticiones internas, parejas de
-  `Isolated` y autómatas de interfaz que apagan las órdenes.
-- [Control modular de la línea de transferencia](notebooks/factory_io/LCS_modular_control_transfer_line_openplc.ipynb):
-  dos supervisores conflictivos; el generador detecta el conflicto y agrega el coordinador al
-  programa.
-- [Línea de ensamble](notebooks/factory_io/LCS_assembly_line_openplc.ipynb): cinco
-  supervisores locales; el programa es idéntico al que generaba TCT_Proyect con TCT.
+- [Pequeña fábrica con averías](notebooks/factory_io/LCS_modular_control_small_factory_openplc.ipynb):
+  la versión DESlab de `Small_factory.py`, con un supervisor, el supervisor de la alimentación y
+  los autómatas auxiliares de las máquinas, el buffer, la cuchilla y la reparación. Explica
+  `state_order` y `transition_order`, que numeran los estados y ordenan las transiciones como TCT.
+- [Línea de transferencia](notebooks/factory_io/LCS_modular_control_transfer_line_openplc.ipynb):
+  la versión DESlab de `Transfer_line.py`, con cuatro supervisores locales y dos supervisores de
+  la línea que son conflictivos; el generador detecta el conflicto y agrega el coordinador.
+- [Línea de ensamble](notebooks/factory_io/LCS_assembly_line_openplc.ipynb): la versión DESlab
+  de `Assembly_line.py`, con cinco supervisores locales.
 
-La prueba [`tests/test_openplc_notebooks.py`](tests/test_openplc_notebooks.py) ejecuta las celdas
-de esos notebooks, simula scan por scan los programas de las dos pequeñas fábricas y de la línea
-de transferencia y compara el de la línea de ensamble con el de TCT.
+Los tres últimos definen sus modelos con `fsa` y solo con los autolazos necesarios, y generan un
+programa idéntico, byte por byte, al que genera TCT con el script correspondiente de TCT_Proyect
+(copiados en la misma carpeta). Los tres programas para las escenas están en
+[`notebooks/factory_io/ST_generated`](notebooks/factory_io/ST_generated). La prueba
+[`tests/test_openplc_notebooks.py`](tests/test_openplc_notebooks.py) ejecuta las celdas de los
+notebooks, simula scan por scan el programa de la pequeña fábrica con un supervisor y compara los
+otros tres con la huella SHA-256 de los programas de TCT.
 
 Las salidas conservan su valor hasta que otra acción las cambie. El ejemplo explicita
 el protocolo de arranque, fin y rearme, así como el supuesto de eventos en scans distintos.

@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+  <!-- Pequeña fábrica de Factory I/O (Small_Factory.factoryio), vista de planta: la cinta de
+       alimentación lleva piezas a M1; al terminar M1, un emisor pone la pieza en la cinta del
+       buffer, que la lleva hasta la cuchilla de tope frente a M2. Eventos controlables en negro,
+       no controlables en rosado (#ff2a7f), el color que usa DESlab para los no controlables. -->
+  <rect width="900" height="420" fill="#ffffff"/>
+
+  <!-- cintas -->
+  <g fill="#fde3b5" stroke="#c97f0b" stroke-width="2">
+    <rect x="60" y="150" width="170" height="34" rx="17"/>
+    <rect x="360" y="150" width="285" height="34" rx="17"/>
+    <rect x="770" y="150" width="100" height="34" rx="17"/>
+  </g>
+  <g stroke="#c97f0b" stroke-width="1.2" stroke-dasharray="6,6">
+    <line x1="80" y1="167" x2="210" y2="167"/>
+    <line x1="380" y1="167" x2="625" y2="167"/>
+    <line x1="790" y1="167" x2="850" y2="167"/>
+  </g>
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="15" fill="#b9770e">
+    <text x="62" y="112">cinta de alimentación</text>
+    <text x="440" y="112">cinta del buffer</text>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">
+    <text x="70" y="206">BA-ON / BA-OFF</text>
+    <text x="380" y="206">Buffer-conveyor-ON / -OFF</text>
+  </g>
+
+  <!-- emisor de alimentación -->
+  <rect x="8" y="146" width="44" height="42" rx="4" fill="#eeeeee" stroke="#999999" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="11" fill="#555555" text-anchor="middle">
+    <text x="30" y="164">emisor</text><text x="30" y="178">de M1</text>
+  </g>
+
+  <!-- emisor del buffer -->
+  <rect x="362" y="62" width="74" height="40" rx="4" fill="#eeeeee" stroke="#999999" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <g font-family="Liberation Sans, Arial, sans-serif" font-size="11" fill="#555555" text-anchor="middle">
+    <text x="399" y="79">emisor</text><text x="399" y="93">del buffer</text>
+  </g>
+  <g stroke="#555555" stroke-width="1.6" fill="#555555">
+    <line x1="399" y1="102" x2="399" y2="140"/>
+    <polygon points="399,147 394,137 404,137"/>
+  </g>
+  <text x="446" y="80" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">Piece-restart-ON / -OFF</text>
+
+  <!-- máquinas -->
+  <g fill="#d6e4f0" stroke="#2e6f9e" stroke-width="2">
+    <rect x="240" y="124" width="104" height="86" rx="6"/>
+    <rect x="655" y="124" width="104" height="86" rx="6"/>
+  </g>
+  <g font-family="Liberation Sans, Arial, sans-serif" fill="#2e6f9e" text-anchor="middle">
+    <text x="292" y="164" font-size="22">M1</text>
+    <text x="707" y="164" font-size="22">M2</text>
+    <text x="292" y="184" font-size="11">centro de</text><text x="292" y="197" font-size="11">mecanizado</text>
+    <text x="707" y="184" font-size="11">centro de</text><text x="707" y="197" font-size="11">mecanizado</text>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12">
+    <text x="250" y="232" fill="#222222">M1-OFF</text>
+    <text x="250" y="248" fill="#ff2a7f">M1-ON  M1-Bussy</text>
+    <text x="250" y="264" fill="#ff2a7f">M1-END  M1-NOT-Bussy</text>
+    <text x="665" y="232" fill="#222222">M2-OFF</text>
+    <text x="665" y="248" fill="#ff2a7f">M2-ON  M2-Bussy</text>
+    <text x="665" y="264" fill="#ff2a7f">M2-END</text>
+  </g>
+
+  <!-- piezas -->
+  <g fill="#7fb3d5" stroke="#2e6f9e" stroke-width="1.5">
+    <rect x="120" y="157" width="20" height="20" rx="3"/>
+    <rect x="470" y="157" width="20" height="20" rx="3"/>
+    <rect x="586" y="157" width="20" height="20" rx="3"/>
+  </g>
+
+  <!-- cuchilla de tope -->
+  <rect x="616" y="142" width="8" height="50" rx="2" fill="#555555"/>
+  <text x="500" y="288" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">Blade-ON / -OFF</text>
+  <line x1="580" y1="277" x2="618" y2="194" stroke="#999999" stroke-width="1"/>
+
+  <!-- sensores -->
+  <g fill="#ff2a7f">
+    <circle cx="212" cy="140" r="6"/>
+    <circle cx="430" cy="140" r="6"/>
+    <circle cx="604" cy="140" r="6"/>
+  </g>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">
+    <text x="196" y="128">Fed</text>
+    <text x="446" y="137">Piece-located</text>
+    <text x="560" y="128">Piece-ready</text>
+  </g>
+
+  <!-- salida -->
+  <polygon points="882,167 870,160 870,174" fill="#555555"/>
+  <text x="790" y="206" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#555555">salida</text>
+
+  <!-- tablero -->
+  <rect x="30" y="300" width="620" height="104" rx="8" fill="#f6f6f6" stroke="#bbbbbb" stroke-width="1.5"/>
+  <text x="54" y="322" font-family="Liberation Sans, Arial, sans-serif" font-size="14" fill="#555555">tablero</text>
+  <circle cx="80" cy="356" r="14" fill="#3b8a3e" stroke="#2a6a2d" stroke-width="2"/>
+  <text x="62" y="390" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">start</text>
+  <g fill="#c0392b" stroke="#8e2a20" stroke-width="2">
+    <circle cx="190" cy="356" r="14"/>
+    <circle cx="250" cy="356" r="14"/>
+  </g>
+  <text x="168" y="326" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#555555">avería</text>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">
+    <text x="150" y="390">M1-BROKEN</text>
+    <text x="234" y="390">M2-BROKEN</text>
+  </g>
+  <g fill="#f5c518" stroke="#b8920f" stroke-width="2">
+    <circle cx="380" cy="356" r="14"/>
+    <circle cx="440" cy="356" r="14"/>
+  </g>
+  <text x="352" y="326" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#555555">reparación</text>
+  <g font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">
+    <text x="342" y="390">M1-REPAIR</text>
+    <text x="420" y="390">M2-REPAIR</text>
+  </g>
+  <text x="482" y="326" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#555555">salidas de reparación</text>
+  <text x="482" y="352" font-family="Liberation Mono, Courier New, monospace" font-size="11" fill="#222222">M1-REPAIR-OUT-ON / -OFF</text>
+  <text x="482" y="368" font-family="Liberation Mono, Courier New, monospace" font-size="11" fill="#222222">M2-REPAIR-OUT-ON / -OFF</text>
+
+  <!-- convenciones -->
+  <text x="676" y="330" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#222222">orden del PLC</text>
+  <text x="676" y="346" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#444444">(evento controlable)</text>
+  <text x="676" y="372" font-family="Liberation Mono, Courier New, monospace" font-size="12" fill="#ff2a7f">sensor u orden observada</text>
+  <text x="676" y="388" font-family="Liberation Sans, Arial, sans-serif" font-size="12" fill="#444444">(evento no controlable)</text>
+</svg>

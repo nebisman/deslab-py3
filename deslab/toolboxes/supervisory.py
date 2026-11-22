@@ -153,4 +153,6 @@ def supcontrollablepfclosed(H, G):
     Sigma_uc = G.Sigma - G.Sigcon
     E_uc_clos = sigmakleeneclos(Sigma_uc)
     Ksupc = H - (((G - H) / E_uc_clos) * E_clos)
-    return Ksupc
+    # Sigma* makes every event controllable; keep the classification of H and G,
+    # as the general algorithm does with H & G
+    return Ksupc.setpar(Sigcon=set((H.Sigcon | G.Sigcon) & Ksupc.Sigma))

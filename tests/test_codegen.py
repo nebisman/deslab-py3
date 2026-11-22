@@ -96,3 +96,63 @@ def test_unreachable_supervisor_is_rejected(tmp_path):
 def test_multiple_supervisors_need_one_plant_each(tmp_path):
     with pytest.raises(ValueError, match="one plant per supervisor"):
         generate_ST_OPENPLC([machine(), machine()], actuators=signals(), output_dir=tmp_path)
+
+
+def branching():
+    """From idle, either a job (go, done) or a fault (fail, fixed); fixed is controllable."""
+    return fsa(["idle", "busy", "down"], ["go", "done", "fail", "fixed"],
+               [("idle", "go", "busy"), ("busy", "done", "idle"),
+                ("idle", "fail", "down"), ("down", "fixed", "idle")],
+               ["idle"], ["idle"], Sigcon=["go", "fixed"])
+
+
+def branching_signals():
+    return {"go": "Motor:ON:%QX0.0", "done": "RE_Done:Done:%IX0.0",
+            "fail": "RE_Fail:Fail:%IX0.1", "fixed": "Reset:ON:%QX0.1"}
+
+
+def test_state_order_fixes_the_numbering(tmp_path):
+    S = branching()
+    # breadth-first with this event order: idle 0, down 1, busy 2
+    default = generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path,
+                                  event_order=["fail", "go"])
+    assert "state[0] = 0 & RE_Fail.Q THEN\n  \t\tstate[0] := 1;" in default
+    listed = generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path,
+                                 event_order=["fail", "go"], state_order={S: ["idle", "busy", "down"]})
+    assert "state[0] = 0 & RE_Fail.Q THEN\n  \t\tstate[0] := 2;" in listed
+    # an automaton as source: its breadth-first order, restricted to the supervisor's states
+    source = fsa(["idle", "extra", "busy", "down"], ["go", "skip", "done", "fail", "fixed"],
+                 [("idle", "skip", "extra"), ("idle", "go", "busy"), ("busy", "done", "idle"),
+                  ("extra", "fail", "down"), ("down", "fixed", "idle")],
+                 ["idle"], ["idle"], Sigcon=["go", "fixed"])
+    from_source = generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path,
+                                      event_order=["skip", "go"], state_order={S: source})
+    assert from_source == listed
+
+
+def test_transition_order_sets_the_branch_order(tmp_path):
+    S = branching()
+    transitions = [("down", "fixed", "idle"), ("busy", "done", "idle"),
+                   ("idle", "fail", "down"), ("idle", "go", "busy")]
+    source = generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path,
+                                 state_order={S: ["idle", "busy", "down"]},
+                                 transition_order={S: transitions})
+    assert source.index("state[0] = 1 & RE_Done.Q") < source.index("state[0] = 0 & RE_Fail.Q")
+    default = generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path,
+                                  state_order={S: ["idle", "busy", "down"]})
+    assert default.index("state[0] = 0 & RE_Fail.Q") < default.index("state[0] = 1 & RE_Done.Q")
+
+
+@pytest.mark.parametrize("option, message", [
+    ({"state_order": {"S": ["idle", "busy"]}}, "each of its states once"),
+    ({"state_order": {"S": ["busy", "idle", "down"]}}, "start with its initial state"),
+    ({"state_order": {"other": ["idle"]}}, "keys must be supervisors"),
+    ({"transition_order": {"S": [("idle", "go", "busy")]}}, "each of its transitions once"),
+])
+def test_invalid_orders_fail_before_writing(tmp_path, option, message):
+    S = branching()
+    models = {"S": S, "other": machine()}
+    option = {name: {models[key]: value for key, value in order.items()} for name, order in option.items()}
+    with pytest.raises(ValueError, match=message):
+        generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path, **option)
+    assert list(tmp_path.iterdir()) == []
