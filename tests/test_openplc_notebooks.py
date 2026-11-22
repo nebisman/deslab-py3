@@ -270,12 +270,12 @@ def small_factory(tmp_path, monkeypatch):
 def test_small_factory_matches_tct(small_factory):
     names = small_factory
     assert size(names["SUP"]) == (36, 119) and size(names["sup_BA"]) == (5, 9)
-    # REQ_repair's repair events are not plant events: the supervisor never uses them
-    assert {e for x in names["SUP"].X for e in names["SUP"].Gamma(x)} == \
-        names["SUP"].Sigma - {"M1-REPAIR-OUT-ON", "M2-REPAIR-OUT-ON"}
+    # REQ_repair's repair events r1, r2 are not plant events: the supervisor never uses them
+    assert {e for x in names["SUP"].X for e in names["SUP"].Gamma(x)} == names["SUP"].Sigma - {"r1", "r2"}
     source = names["st"]
     assert (names["tmp_path"] / "ST_Generated" / "Small_factory.st").read_text(encoding="utf-8") == source
     assert sha256(source) == TCT_SMALL_FACTORY_SHA256
+    assert source == (NOTEBOOKS / "ST_generated" / "Small_factory.st").read_text(encoding="utf-8")
 
 
 def test_small_factory_self_loops_are_all_needed(small_factory):
@@ -285,7 +285,7 @@ def test_small_factory_self_loops_are_all_needed(small_factory):
 def test_small_factory_self_loops_left_out_do_not_change_the_program(small_factory):
     names = small_factory
     M1 = names["M1"]
-    for e in ("M1-ON", "M1-Bussy", "M1-END"):        # the self-loops of TCT's M1
+    for e in ("M1-ON", "M1-Busy", "M1-END"):        # the self-loops of TCT's M1
         for x in sorted(M1.X):
             if e not in M1.Gamma(x):
                 M1 = M1.addselfloop(x, e)
@@ -312,6 +312,7 @@ def test_transfer_line_matches_tct(transfer_line):
     assert "aux : BOOL := 0;" in source and "INTERN_1_C[1] := 1;" in source
     assert (names["tmp_path"] / "ST_Generated" / "transfer_line.st").read_text(encoding="utf-8") == source
     assert sha256(source) == TCT_TRANSFER_LINE_SHA256
+    assert source == (NOTEBOOKS / "ST_generated" / "transfer_line.st").read_text(encoding="utf-8")
     # BLADE_LIMIT is controllable in Transfer_line.py, so the program writes that input
     assert "GD_IN_4 := 1;" in source
 
@@ -358,6 +359,7 @@ def test_assembly_line_matches_tct(assembly_line):
     source = assembly_line["st"]
     assert (assembly_line["tmp_path"] / "ST_Generated" / "Assembly_line.st").read_text(encoding="utf-8") == source
     assert hashlib.sha256(source.encode("utf-8")).hexdigest() == TCT_ASSEMBLY_LINE_SHA256
+    assert source == (NOTEBOOKS / "ST_generated" / "Assembly_line.st").read_text(encoding="utf-8")
 
 
 # local plants and specifications of the five supervisors, as in section 4 of the notebook
@@ -403,3 +405,50 @@ def test_assembly_line_self_loops_are_all_needed(assembly_line):
         affected = [k for k in range(5) if name in ASSEMBLY_PLANTS[k] + ASSEMBLY_SPECS[k]]
         changed = {**models, name: smaller}
         assert any(not same(supervisor(k, changed), reference[k]) for k in affected), name
+
+
+# ---------------------------------------------------------------------------------------
+# Small factory with one monolithic supervisor instead of TCT's SUP and sup_BA
+# ---------------------------------------------------------------------------------------
+
+@pytest.fixture
+def monolithic_small_factory(tmp_path, monkeypatch):
+    return run_cells("LCS_monolithic_control_small_factory_openplc.ipynb", "sm",
+                     (5, 7, 9, 11, 13, 15, 17), tmp_path, monkeypatch)
+
+
+def notebook_cells(name):
+    return {cell["id"]: "".join(cell["source"]) for cell in json.loads(
+        (NOTEBOOKS / name).read_text(encoding="utf-8"))["cells"]}
+
+
+def test_monolithic_small_factory_equals_both_tct_supervisors(monolithic_small_factory):
+    names = monolithic_small_factory
+    S = names["SUP"]
+    assert size(S) == (141, 613)
+    assert deslab.iscontrollable(S, names["G"]) and deslab.coac(S).X == S.X
+    assert size(names["SUP_maq"]) == (36, 119) and size(names["sup_BA"]) == (5, 9)
+    assert deslab.nonconflict(names["SUP_maq"], names["sup_BA"])
+    assert deslab.are_isomorphic(S, names["SUP_maq"] // names["sup_BA"])
+    # same events and signal map as the TCT version of the small factory
+    tct, mono = notebook_cells("LCS_modular_control_small_factory_openplc.ipynb"), \
+        notebook_cells("LCS_monolithic_control_small_factory_openplc.ipynb")
+    assert mono["sm-05"] == tct["sf-05"] and mono["sm-15"] == tct["sf-15"]
+
+
+def test_monolithic_small_factory_program(monolithic_small_factory):
+    source = monolithic_small_factory["st"]
+    assert source == (NOTEBOOKS / "ST_generated" / "Small_factory_monolitico.st").read_text(encoding="utf-8")
+    assert "_C :" not in source and "state : ARRAY [0..7] OF DINT;" in source
+    # the auxiliary automata keep TCT's blocks; only their state index moves (sup_BA is gone)
+    tct = (NOTEBOOKS / "ST_generated" / "Small_factory.st").read_text(encoding="utf-8")
+
+    def blocks(st, k):
+        case = re.search(rf"CASE state\[{k}\] OF\n(.*?)END_CASE;", st, re.S)
+        guards = re.findall(rf"state\[{k}\] = \d+ & [^\n]+\n\s*state\[{k}\] := \d+;", st)
+        return (case[1] if case else ""), guards
+
+    for k_tct, k_mono in {1: 1, 2: 2, 4: 3, 5: 4, 6: 5, 7: 6}.items():
+        case, guards = blocks(tct, k_tct)
+        assert blocks(source, k_mono) == (case.replace(f"slt{k_tct}", f"slt{k_mono}"),
+                                          [g.replace(f"state[{k_tct}]", f"state[{k_mono}]") for g in guards])

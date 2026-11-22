@@ -126,19 +126,24 @@ la línea de transferencia y la línea de ensamble:
   la versión DESlab de `Small_factory.py`, con un supervisor, el supervisor de la alimentación y
   los autómatas auxiliares de las máquinas, el buffer, la cuchilla y la reparación. Explica
   `state_order` y `transition_order`, que numeran los estados y ordenan las transiciones como TCT.
+- [Pequeña fábrica con un supervisor monolítico](notebooks/factory_io/LCS_monolithic_control_small_factory_openplc.ipynb):
+  los mismos modelos con un solo supervisor para las máquinas y la cinta de alimentación; comprueba
+  que es igual a los dos supervisores de TCT y explica qué cambia en el programa del PLC.
 - [Línea de transferencia](notebooks/factory_io/LCS_modular_control_transfer_line_openplc.ipynb):
   la versión DESlab de `Transfer_line.py`, con cuatro supervisores locales y dos supervisores de
   la línea que son conflictivos; el generador detecta el conflicto y agrega el coordinador.
 - [Línea de ensamble](notebooks/factory_io/LCS_assembly_line_openplc.ipynb): la versión DESlab
   de `Assembly_line.py`, con cinco supervisores locales.
 
-Los tres últimos definen sus modelos con `fsa` y solo con los autolazos necesarios, y generan un
-programa idéntico, byte por byte, al que genera TCT con el script correspondiente de TCT_Proyect
-(copiados en la misma carpeta). Los tres programas para las escenas están en
+Los notebooks de la pequeña fábrica con averías, la línea de transferencia y la línea de ensamble
+definen sus modelos con `fsa` y solo con los autolazos necesarios, y generan un programa idéntico,
+byte por byte, al que genera TCT con el script correspondiente de TCT_Proyect (copiados en la
+misma carpeta). Los programas para las escenas, incluido el del supervisor monolítico, están en
 [`notebooks/factory_io/ST_generated`](notebooks/factory_io/ST_generated). La prueba
 [`tests/test_openplc_notebooks.py`](tests/test_openplc_notebooks.py) ejecuta las celdas de los
-notebooks, simula scan por scan el programa de la pequeña fábrica con un supervisor y compara los
-otros tres con la huella SHA-256 de los programas de TCT.
+notebooks, simula scan por scan el programa de la pequeña fábrica con un supervisor, compara los
+de TCT con la huella SHA-256 de los programas de TCT y comprueba que los archivos de
+`ST_generated` son los que generan los notebooks.
 
 Las salidas conservan su valor hasta que otra acción las cambie. El ejemplo explicita
 el protocolo de arranque, fin y rearme, así como el supuesto de eventos en scans distintos.

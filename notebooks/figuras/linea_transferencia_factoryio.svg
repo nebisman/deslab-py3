@@ -117,7 +117,7 @@
     <text x="156" y="396" fill="#ff2a7f">Clamped</text>
     <text x="156" y="412" fill="#ff2a7f">Piece-reprocessed</text>
     <text x="378" y="328" fill="#222222">M2-OFF</text>
-    <text x="378" y="344" fill="#ff2a7f">M2-ON  M2-Bussy</text>
+    <text x="378" y="344" fill="#ff2a7f">M2-ON  M2-Busy</text>
     <text x="378" y="360" fill="#ff2a7f">M2-END</text>
     <text x="600" y="328" fill="#222222">TU-Conveyor-OFF</text>
     <text x="600" y="344" fill="#ff2a7f">TU-Conveyor-ON</text>
