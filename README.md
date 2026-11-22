@@ -127,8 +127,10 @@ la línea de transferencia y la línea de ensamble:
   los autómatas auxiliares de las máquinas, el buffer, la cuchilla y la reparación. Explica
   `state_order` y `transition_order`, que numeran los estados y ordenan las transiciones como TCT.
 - [Pequeña fábrica con un supervisor monolítico](notebooks/factory_io/LCS_monolithic_control_small_factory_openplc.ipynb):
-  los mismos modelos con un solo supervisor para las máquinas y la cinta de alimentación; comprueba
-  que es igual a los dos supervisores de TCT y explica qué cambia en el programa del PLC.
+  un solo supervisor para las máquinas y la cinta de alimentación. Los modelos tienen dos cambios:
+  el pulsador de arranque es un componente de la planta, en lugar de autolazos de `start`, y una
+  sola especificación, `REQ_start`, pide esperarlo antes de cualquier orden. Comprueba que el
+  supervisor es igual a los dos supervisores de TCT y explica qué cambia en el programa del PLC.
 - [Línea de transferencia](notebooks/factory_io/LCS_modular_control_transfer_line_openplc.ipynb):
   la versión DESlab de `Transfer_line.py`, con cuatro supervisores locales y dos supervisores de
   la línea que son conflictivos; el generador detecta el conflicto y agrega el coordinador.

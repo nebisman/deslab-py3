@@ -422,7 +422,7 @@ def notebook_cells(name):
         (NOTEBOOKS / name).read_text(encoding="utf-8"))["cells"]}
 
 
-def test_monolithic_small_factory_equals_both_tct_supervisors(monolithic_small_factory):
+def test_monolithic_small_factory_equals_both_tct_supervisors(monolithic_small_factory, tmp_path, monkeypatch):
     names = monolithic_small_factory
     S = names["SUP"]
     assert size(S) == (141, 613)
@@ -430,6 +430,20 @@ def test_monolithic_small_factory_equals_both_tct_supervisors(monolithic_small_f
     assert size(names["SUP_maq"]) == (36, 119) and size(names["sup_BA"]) == (5, 9)
     assert deslab.nonconflict(names["SUP_maq"], names["sup_BA"])
     assert deslab.are_isomorphic(S, names["SUP_maq"] // names["sup_BA"])
+    # start comes from the push button, not from self-loops in the machines and the feeder
+    assert all("start" not in names[m].Sigma for m in ("model_M1", "model_M2", "B_A"))
+    assert size(names["pulsador"]) == (1, 1) and names["pulsador"].Sigma == {"start"}
+    # without it start is not a plant event and the supervisor never leaves its initial state
+    assert "start" not in names["G_sin"].Sigma and size(names["SUP_sin"]) == (1, 0)
+    # REQ_start joins TCT's REQ_start (e1, e2) and start (BA-ON)
+    assert names["REQ_start"].Sigma == {"start", "e1", "e2", "BA-ON"}
+    assert deslab.are_isomorphic(names["REQ_start"], names["REQ_start_TCT"] // names["start_TCT"])
+    # the plants and supervisors are those of the TCT version, where start is a self-loop
+    tct = run_cells("LCS_modular_control_small_factory_openplc.ipynb", "sf", (5, 7, 9, 11),
+                    tmp_path, monkeypatch)
+    assert deslab.are_isomorphic(names["G"], tct["model_M1"] // tct["model_M2"] // tct["B_A"])
+    assert deslab.are_isomorphic(names["SUP_maq"], tct["SUP"])
+    assert deslab.are_isomorphic(names["sup_BA"], tct["sup_BA"])
     # same events and signal map as the TCT version of the small factory
     tct, mono = notebook_cells("LCS_modular_control_small_factory_openplc.ipynb"), \
         notebook_cells("LCS_monolithic_control_small_factory_openplc.ipynb")
