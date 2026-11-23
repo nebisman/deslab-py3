@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 import deslab
+from helpers import control_equivalent
 from test_factory_st_runtime import FactoryST
 
 NOTEBOOKS = Path(__file__).resolve().parents[1] / "notebooks" / "factory_io"
@@ -278,6 +279,20 @@ def test_small_factory_matches_tct(small_factory):
     assert source == (NOTEBOOKS / "ST_generated" / "Small_factory.st").read_text(encoding="utf-8")
 
 
+# number of states of the reduced supervisors that TCT's supreduce (pitct 1.0.3) computes for
+# the same supervisors and plants; DESlab's supreduce gives automata isomorphic to TCT's
+def check_reduced_supervisors(names, sizes):
+    for supervisor, (plant, size) in sizes.items():
+        S, G = names[supervisor], names[plant]
+        R = deslab.supreduce(S, G)
+        assert len(R) == size and control_equivalent(R, S, G), supervisor
+
+
+def test_small_factory_reduced_supervisors_match_tct(small_factory):
+    G = small_factory["model_M1"] // small_factory["model_M2"]
+    check_reduced_supervisors({**small_factory, "G": G}, {"SUP": ("G", 4), "sup_BA": ("B_A", 2)})
+
+
 def test_small_factory_self_loops_are_all_needed(small_factory):
     assert check_self_loops(small_factory, SMALL_FACTORY_MODELS) == (3, 2)
 
@@ -315,6 +330,12 @@ def test_transfer_line_matches_tct(transfer_line):
     assert source == (NOTEBOOKS / "ST_generated" / "transfer_line.st").read_text(encoding="utf-8")
     # BLADE_LIMIT is controllable in Transfer_line.py, so the program writes that input
     assert "GD_IN_4 := 1;" in source
+
+
+def test_transfer_line_reduced_supervisors_match_tct(transfer_line):
+    check_reduced_supervisors(transfer_line, {
+        "sup_M1": ("Conveyor_M1", 2), "sup_B1": ("P_B1", 25), "sup_B2": ("Conveyor_buffer2", 4),
+        "sup_TU": ("P_TU", 6), "sup_2": ("plant_2", 4), "sup2_2": ("plant2_2", 2)})
 
 
 def test_transfer_line_self_loops_are_all_needed(transfer_line):
@@ -512,6 +533,13 @@ def test_local_modular_small_factory_equals_the_monolithic_supervisor(local_modu
         notebook_cells("LCS_monolithic_control_small_factory_openplc.ipynb")["sm-13"]
     assert {e: s for e, s in names["actuators"].items() if e not in REQUESTS} == mono["actuators"]
     assert names["Mask"] == mono["Mask"] and names["parejas"] == [("e2", "M2-ON"), ("e1", "M1-ON")]
+
+
+def test_local_modular_small_factory_reduced_supervisors_match_tct(local_modular_small_factory):
+    # S1 reduces to the pieces in the buffer (0, 1, 2), S2 to REQ_start (wait for the push
+    # button, then enable every order) and the monolithic SUP to both
+    check_reduced_supervisors(local_modular_small_factory,
+                              {"S1": ("G1", 3), "S2": ("G2", 2), "SUP": ("G", 4)})
 
 
 def test_local_modular_small_factory_program(local_modular_small_factory):

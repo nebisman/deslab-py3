@@ -1,7 +1,7 @@
 """Brute force language utilities used to check the DESlab algorithms."""
 import random
 from itertools import product as cartesian
-from deslab import fsa, epsilon
+from deslab import fsa, epsilon, are_langequiv
 
 
 def closure(G, Q, unobservable=frozenset([epsilon])):
@@ -95,3 +95,9 @@ def random_fsa(rng, nstates=4, events=('a', 'b', 'c'), det=True, eps=False,
 
 def rngs(count=25, seed=0):
     return [random.Random(seed + k) for k in range(count)]
+
+
+def control_equivalent(R, S, G):
+    """R || G generates and marks the same strings as S || G"""
+    RG, SG = R // G, S // G
+    return are_langequiv(RG.setpar(Xm=RG.X), SG.setpar(Xm=SG.X)) and are_langequiv(RG, SG)

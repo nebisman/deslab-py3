@@ -13,8 +13,8 @@ from collections import deque
 from pathlib import Path
 
 from ..src.automatadefs import fsa
-from ..src.algorithms import dfs, parallel, product
-from .supervisory import allevents, supcontrollable
+from ..src.algorithms import dfs, parallel
+from .supervisory import allevents, supcontrollable, _reduced_supervisor
 
 __all__ = ["generate_ST_OPENPLC"]
 
@@ -48,74 +48,10 @@ class _STEmitter:
         return dfs(model.Graph.reverse(copy=False), model.Xm) == model.X
 
     def _reduce_supervisor(self, plant, supervisor, controlled):
-        """Build a deterministic control congruence relative to the given plant."""
+        """Reduced coordinator (supreduce of supervisory.py), numbered in this emitter's order."""
         self._require_deterministic("Coordinator", supervisor)
         states = list(self._breadth_first_states(supervisor))
-        disabled = {state: set() for state in states}
-        plant_marked = set()
-        for sup_state, plant_state in product(supervisor, plant).X:
-            disabled[sup_state].update(plant.Gamma(plant_state) - supervisor.Gamma(sup_state))
-            if plant_state in plant.Xm:
-                plant_marked.add(sup_state)
-
-        partition = {state: frozenset({state}) for state in states}
-        for index, left in enumerate(states):
-            for right in states[index + 1:]:
-                if partition[left] == partition[right]:
-                    continue
-                candidate = self._merge_control_cells(
-                    partition, supervisor, disabled, plant_marked, left, right
-                )
-                if candidate is not None:
-                    partition = candidate
-
-        numbering = {
-            cell: index for index, cell in enumerate(dict.fromkeys(partition.values()))
-        }
-        transitions = {
-            (
-                numbering[partition[state]],
-                event,
-                numbering[partition[supervisor.delta(state, event)]],
-            )
-            for state in states
-            for event in supervisor.Gamma(state)
-        }
-        marked = {numbering[partition[state]] for state in supervisor.Xm}
-        return fsa(range(len(numbering)), supervisor.Sigma, transitions, [0], marked,
-                   Sigcon=controlled & supervisor.Sigma)
-
-    @staticmethod
-    def _merge_control_cells(partition, supervisor, disabled, plant_marked, left, right):
-        candidate = partition.copy()
-        pending = [(left, right)]
-        while pending:
-            left, right = pending.pop()
-            left_cell, right_cell = candidate[left], candidate[right]
-            if left_cell == right_cell:
-                continue
-            for first in left_cell:
-                for second in right_cell:
-                    if (
-                        supervisor.Gamma(first) & disabled[second]
-                        or supervisor.Gamma(second) & disabled[first]
-                        or (
-                            (first in plant_marked) == (second in plant_marked)
-                            and (first in supervisor.Xm) != (second in supervisor.Xm)
-                        )
-                    ):
-                        return None
-
-            merged = left_cell | right_cell
-            targets = {}
-            for state in merged:
-                candidate[state] = merged
-                for event in supervisor.Gamma(state):
-                    target = supervisor.delta(state, event)
-                    previous = targets.setdefault(event, target)
-                    if candidate[target] != candidate[previous]:
-                        pending.append((target, previous))
-        return candidate
+        return _reduced_supervisor(supervisor, plant, states, controlled & supervisor.Sigma)
 
     @staticmethod
     def _require_deterministic(name, model):

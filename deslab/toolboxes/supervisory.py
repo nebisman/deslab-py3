@@ -99,10 +99,13 @@ def supcontrollable(H, G, verbose=False, renamestates=False):
     closed the algorithm based on language operations is used,
     otherwise the general iterative algorithm.
     """
-    if ispfclosed(H):
+    # the language algorithm works with the language that H generates; trim H so that it
+    # generates Lm(H). If Lm(H) is empty the general algorithm returns the empty supervisor
+    Ht = trim(H) if ispfclosed(H) else None
+    if Ht is not None and not Ht.empty:
         if verbose:
             print('Using Prefix Closed Algorithm')
-        Ksupc = supcontrollablepfclosed(H, G)
+        Ksupc = supcontrollablepfclosed(Ht, G)
     else:
         if verbose:
             print('Using General Algorithm')
@@ -156,3 +159,143 @@ def supcontrollablepfclosed(H, G):
     # Sigma* makes every event controllable; keep the classification of H and G,
     # as the general algorithm does with H & G
     return Ksupc.setpar(Sigcon=set((H.Sigcon | G.Sigcon) & Ksupc.Sigma))
+
+
+def supreduce(S, G):
+    """
+    This function computes a reduced supervisor for the supervisor S
+    and the plant G, as the function supreduce of TCT (Su and Wonham,
+    Supervisor reduction for discrete-event systems, 2004). The
+    reduced supervisor R is control equivalent to S: R || G generates
+    and marks the same strings as S || G, so R enforces the same
+    closed-loop behavior with fewer states. R does not track the plant,
+    only the information needed to decide which events to disable.
+
+    Two states x and y of S can share a state of R when they are
+    control consistent:
+      - no event enabled at x is disabled at y, and vice versa; an
+        event of S and G is disabled at x if G can execute it after a
+        string that reaches x but S does not enable it at x;
+      - if x and y are both reached by strings that G marks, or
+        neither is, then both are marked in S or both are unmarked.
+    The states of S are visited in breadth-first order and each pair
+    (x, y) is merged, together with the successors that the merge
+    requires to keep R deterministic, when all the merged states are
+    pairwise control consistent. Like the algorithm of TCT this is a
+    greedy procedure: it gives a small supervisor, not necessarily one
+    with the minimum number of states.
+
+    S and G must be deterministic, with one initial state. The states
+    of R are numbered 0, 1, 2, ..., and 0 is the initial state. R keeps
+    the events of S and their controllability and observability.
+
+    Example
+    -------
+    syms('a1 b1 a2 b2')
+    M1 = fsa([0, 1], [a1, b1], [(0, a1, 1), (1, b1, 0)], [0], [0], Sigcon=[a1])
+    M2 = fsa([0, 1], [a2, b2], [(0, a2, 1), (1, b2, 0)], [0], [0], Sigcon=[a2])
+    B = fsa([0, 1], [b1, a2], [(0, b1, 1), (1, a2, 0)], [0], [0, 1], Sigcon=[a2])
+    G = M1 // M2
+    S = supcontrollable(G // B, G)     # 6 states
+    R = supreduce(S, G)                # 2 states: the buffer is empty or full
+    draw(S, R)
+    """
+    for name, A in (('S', S), ('G', G)):
+        if A.empty or len(A.X0) != 1 or not A.is_dfa() or A.has_epsilon():
+            raise ValueError(name + ' must be a nonempty deterministic automaton '
+                             'with one initial state')
+    order = _breadth_first_states(S)
+    table = [(e, S.symDict[e]) for e in _sorted(S.Sigma) if e in S.symDict]
+    return _reduced_supervisor(S, G, order, S.Sigcon & S.Sigma, table, r'$S_{red}$')
+
+
+def _breadth_first_states(S):
+    """reachable states of the deterministic automaton S in breadth-first order"""
+    initial = next(iter(S.X0))
+    order, seen = [initial], {initial}
+    for state in order:
+        for event in _sorted(S.Gamma(state)):
+            target = S.delta(state, event)
+            if target not in seen:
+                seen.add(target)
+                order.append(target)
+    return order
+
+
+def _control_data(S, G):
+    """
+    Events disabled at each state of S and states of S reached by
+    strings marked by G, over the reachable pairs of S || G.
+    """
+    shared = S.Sigma & G.Sigma
+    disabled = {state: set() for state in S.X}
+    plant_marked = set()
+    start = (next(iter(S.X0)), next(iter(G.X0)))
+    seen, pending = {start}, [start]
+    while pending:
+        x, q = pending.pop()
+        enabled, feasible = S.Gamma(x), G.Gamma(q)
+        disabled[x] |= (feasible & shared) - enabled
+        if q in G.Xm:
+            plant_marked.add(x)
+        steps = [(S.delta(x, e), G.delta(q, e)) for e in enabled & feasible]
+        steps += [(S.delta(x, e), q) for e in enabled - G.Sigma]
+        steps += [(x, G.delta(q, e)) for e in feasible - S.Sigma]
+        for pair in steps:
+            if pair not in seen:
+                seen.add(pair)
+                pending.append(pair)
+    return disabled, plant_marked
+
+
+def _reduced_supervisor(S, G, order, Sigcon, table=(), name=''):
+    """
+    Reduced supervisor of S for G: the states of S, listed in order
+    (initial state first), are merged greedily into a control
+    congruence and numbered by the first state of each cell.
+    """
+    disabled, plant_marked = _control_data(S, G)
+    cell = {state: frozenset([state]) for state in order}
+    for index, left in enumerate(order):
+        for right in order[index + 1:]:
+            if cell[left] != cell[right]:
+                merged = _merge_control_cells(S, cell, disabled, plant_marked, left, right)
+                if merged is not None:
+                    cell = merged
+    numbering = {c: k for k, c in enumerate(dict.fromkeys(cell[state] for state in order))}
+    transitions = {(numbering[cell[x]], e, numbering[cell[S.delta(x, e)]])
+                   for x in order for e in S.Gamma(x)}
+    marked = {numbering[cell[x]] for x in S.Xm if x in cell}
+    return fsa(list(range(len(numbering))), S.Sigma, transitions, [0], marked, list(table),
+               Sigobs=S.Sigobs & S.Sigma, Sigcon=set(Sigcon), name=name)
+
+
+def _merge_control_cells(S, cell, disabled, plant_marked, left, right):
+    """
+    Merge the cells of left and right, and then the cells of their
+    successors under each event; None if two merged states are not
+    control consistent.
+    """
+    candidate = cell.copy()
+    pending = [(left, right)]
+    while pending:
+        left, right = pending.pop()
+        left_cell, right_cell = candidate[left], candidate[right]
+        if left_cell == right_cell:
+            continue
+        for x in left_cell:
+            for y in right_cell:
+                if (S.Gamma(x) & disabled[y] or S.Gamma(y) & disabled[x]
+                        or ((x in plant_marked) == (y in plant_marked)
+                            and (x in S.Xm) != (y in S.Xm))):
+                    return None
+        merged = left_cell | right_cell
+        targets = {}
+        for state in merged:
+            candidate[state] = merged
+            for event in S.Gamma(state):
+                target = S.delta(state, event)
+                previous = targets.setdefault(event, target)
+                if candidate[target] != candidate[previous]:
+                    pending.append((target, previous))
+    return candidate

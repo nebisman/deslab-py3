@@ -1,6 +1,6 @@
 import pytest
 from deslab import *
-from helpers import languages, random_fsa, rngs
+from helpers import control_equivalent, languages, random_fsa, rngs
 
 
 def test_diagnoser():
@@ -100,6 +100,65 @@ def test_supcontrollable_keeps_the_uncontrollable_events():
     assert ispfclosed(H)
     for K in (supcontrollable(H, G), supcontrollablepfclosed(H, G), supcontrollablegeneral(H, G)):
         assert K.Sigcon == {'on', 'off'}
+
+
+def test_supcontrollable_empty_marked_language():
+    """an empty Lm(H) is prefix closed, but the language algorithm works with L(H): the
+    supervisor must be empty, not an automaton that generates strings and marks none"""
+    G = fsa([0, 1], ['a', 'u'], [(0, 'a', 1), (1, 'u', 0)], [0], [], Sigcon=['a'])
+    assert ispfclosed(G) and supcontrollable(G, G).empty
+    E = fsa([0, 1], ['a', 'u'], [(0, 'a', 1), (1, 'u', 0)], [0], [0, 1], Sigcon=['a'])
+    assert supcontrollable(G // E, G).empty
+    # H marks only the empty string and a leads to a blocking state: a is disabled
+    G = fsa([0, 1], ['a', 'u'], [(0, 'a', 1), (1, 'u', 0)], [0], [0, 1], Sigcon=['a'])
+    H = fsa([0, 1], ['a', 'u'], [(0, 'a', 1)], [0], [0], Sigcon=['a'])
+    assert ispfclosed(H) and languages(supcontrollable(H, G), 3) == ({()}, {()})
+
+
+def test_supreduce_buffer():
+    """two machines and a buffer of one piece: the reduced supervisor is the buffer, as in TCT"""
+    syms('a1 b1 a2 b2')
+    M1 = fsa([0, 1], [a1, b1], [(0, a1, 1), (1, b1, 0)], [0], [0], Sigcon=[a1])
+    M2 = fsa([0, 1], [a2, b2], [(0, a2, 1), (1, b2, 0)], [0], [0], Sigcon=[a2])
+    B = fsa([0, 1], [b1, a2], [(0, b1, 1), (1, a2, 0)], [0], [0, 1], Sigcon=[a2])
+    G = M1 // M2
+    S = supcontrollable(G // B, G)
+    R = supreduce(S, G)
+    assert (len(S), len(R)) == (6, 2) and control_equivalent(R, S, G)
+    assert R.Sigma == S.Sigma and R.Sigcon == {a1, a2} and R.X0 == {0}
+    # empty buffer: a1 enabled, b1 fills it; full buffer: a1 disabled, a2 empties it
+    assert R.Gamma(0) == {a1, b1, b2} and R.delta(0, b1) == 1
+    assert R.Gamma(1) == {a2, b2} and R.delta(1, a2) == 0
+
+
+def test_supreduce_marking():
+    G = fsa([0], ['a'], [(0, 'a', 0)], [0], [0], Sigcon=set())
+    # an even number of a: both states enable a, only one is marked, and G marks both
+    E = fsa([0, 1], ['a'], [(0, 'a', 1), (1, 'a', 0)], [0], [0], Sigcon=set())
+    S = supcontrollable(G // E, G)
+    assert len(supreduce(S, G)) == 2 and control_equivalent(supreduce(S, G), S, G)
+    # a supervisor that disables nothing reduces to one state: the marking of G decides
+    G2 = fsa([0, 1], ['a'], [(0, 'a', 1), (1, 'a', 0)], [0], [0], Sigcon=['a'])
+    R = supreduce(G2, G2)
+    assert len(R) == 1 and R.Xm == {0} and control_equivalent(R, G2, G2)
+
+
+def test_supreduce_requires_deterministic_automata():
+    G = fsa([0, 1], ['a'], [(0, 'a', 0), (0, 'a', 1)], [0], [0], Sigcon=['a'])
+    with pytest.raises(ValueError, match='deterministic'):
+        supreduce(G, G)
+
+
+@pytest.mark.parametrize('rng', rngs(40))
+def test_supreduce_is_control_equivalent(rng):
+    G = random_fsa(rng, nstates=4, events=('a', 'b', 'u', 'v'), pm=0.5, Sigcon=['a', 'b'])
+    E = random_fsa(rng, nstates=3, events=('a', 'b', 'u', 'v'), pm=0.6, Sigcon=['a', 'b'])
+    S = supcontrollable(G // E, G)
+    if S.empty:
+        return
+    R = supreduce(S, G)
+    assert len(R) <= len(S) and R.Sigcon == S.Sigcon
+    assert control_equivalent(R, S, G)
 
 
 def test_supcontrollable_violation_after_trim():
