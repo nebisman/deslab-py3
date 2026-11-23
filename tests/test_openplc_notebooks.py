@@ -411,10 +411,23 @@ def test_assembly_line_self_loops_are_all_needed(assembly_line):
 # Small factory with one monolithic supervisor instead of TCT's SUP and sup_BA
 # ---------------------------------------------------------------------------------------
 
+# the monolithic notebook gives the start commands M1-ON and M2-ON where TCT used the requests
+# e1 and e2, which pairs turn into those commands
+REQUESTS = {"e1": "M1-ON", "e2": "M2-ON"}
+
+
+def as_commands(model):
+    """The model with the requests e1, e2 renamed as the commands M1-ON, M2-ON."""
+    mapping = {e: c for e, c in REQUESTS.items() if e in model.Sigma}
+    return model.renamevents(mapping) if mapping else model
+
+
 @pytest.fixture
 def monolithic_small_factory(tmp_path, monkeypatch):
-    return run_cells("LCS_monolithic_control_small_factory_openplc.ipynb", "sm",
-                     (5, 7, 9, 11, 13, 15, 17), tmp_path, monkeypatch)
+    names = run_cells("LCS_monolithic_control_small_factory_openplc.ipynb", "sm",
+                      (5, 7, 9, 13, 15, 17), tmp_path, monkeypatch)
+    names["tmp_path"] = tmp_path
+    return names
 
 
 def notebook_cells(name):
@@ -427,42 +440,90 @@ def test_monolithic_small_factory_equals_both_tct_supervisors(monolithic_small_f
     S = names["SUP"]
     assert size(S) == (141, 613)
     assert deslab.iscontrollable(S, names["G"]) and deslab.coac(S).X == S.X
-    assert size(names["SUP_maq"]) == (36, 119) and size(names["sup_BA"]) == (5, 9)
-    assert deslab.nonconflict(names["SUP_maq"], names["sup_BA"])
-    assert deslab.are_isomorphic(S, names["SUP_maq"] // names["sup_BA"])
+    # the supervisor gives the start commands itself
+    assert {"M1-ON", "M2-ON"} <= S.Sigcon and not set(REQUESTS) & S.Sigma
     # start comes from the push button, not from self-loops in the machines and the feeder
     assert all("start" not in names[m].Sigma for m in ("model_M1", "model_M2", "B_A"))
     assert size(names["pulsador"]) == (1, 1) and names["pulsador"].Sigma == {"start"}
     # without it start is not a plant event and the supervisor never leaves its initial state
-    assert "start" not in names["G_sin"].Sigma and size(names["SUP_sin"]) == (1, 0)
-    # REQ_start joins TCT's REQ_start (e1, e2) and start (BA-ON)
-    assert names["REQ_start"].Sigma == {"start", "e1", "e2", "BA-ON"}
-    assert deslab.are_isomorphic(names["REQ_start"], names["REQ_start_TCT"] // names["start_TCT"])
-    # the plants and supervisors are those of the TCT version, where start is a self-loop
+    G = names["model_M1"] // names["model_M2"] // names["B_A"]
+    E = names["REQ_Buffer"] // names["REQ_start"] // names["REQ_repair"]
+    assert size(deslab.supcontrollable(G // E, G)) == (1, 0)
+    # same plant and supervisor as the TCT version, where start is a self-loop and REQ_start and
+    # start are two specifications of two supervisors
     tct = run_cells("LCS_modular_control_small_factory_openplc.ipynb", "sf", (5, 7, 9, 11),
                     tmp_path, monkeypatch)
-    assert deslab.are_isomorphic(names["G"], tct["model_M1"] // tct["model_M2"] // tct["B_A"])
-    assert deslab.are_isomorphic(names["SUP_maq"], tct["SUP"])
-    assert deslab.are_isomorphic(names["sup_BA"], tct["sup_BA"])
-    # same events and signal map as the TCT version of the small factory
-    tct, mono = notebook_cells("LCS_modular_control_small_factory_openplc.ipynb"), \
-        notebook_cells("LCS_monolithic_control_small_factory_openplc.ipynb")
-    assert mono["sm-05"] == tct["sf-05"] and mono["sm-15"] == tct["sf-15"]
+    plant = as_commands(tct["model_M1"] // tct["model_M2"] // tct["B_A"])
+    assert deslab.are_isomorphic(names["G"], plant) and names["G"].Sigcon == plant.Sigcon
+    assert deslab.are_isomorphic(S, as_commands(tct["SUP"] // tct["sup_BA"]))
 
 
 def test_monolithic_small_factory_program(monolithic_small_factory):
-    source = monolithic_small_factory["st"]
+    names = monolithic_small_factory
+    source = names["st"]
+    assert (names["tmp_path"] / "ST_Generated" / "Small_factory_monolitico.st").read_text(encoding="utf-8") == source
     assert source == (NOTEBOOKS / "ST_generated" / "Small_factory_monolitico.st").read_text(encoding="utf-8")
     assert "_C :" not in source and "state : ARRAY [0..7] OF DINT;" in source
-    # the auxiliary automata keep TCT's blocks; only their state index moves (sup_BA is gone)
-    tct = (NOTEBOOKS / "ST_generated" / "Small_factory.st").read_text(encoding="utf-8")
+    # SUP writes the start commands; the auxiliary automata M1 and M2 switch them off
+    def case(k):
+        start = source.index(f"CASE state[{k}] OF")
+        return source[start:source.index("CASE state[", start + 1)]
 
-    def blocks(st, k):
-        case = re.search(rf"CASE state\[{k}\] OF\n(.*?)END_CASE;", st, re.S)
-        guards = re.findall(rf"state\[{k}\] = \d+ & [^\n]+\n\s*state\[{k}\] := \d+;", st)
-        return (case[1] if case else ""), guards
+    assert "GD_OUT_0 := 1;" in case(0) and "GD_OUT_1 := 1;" in case(0)
+    assert "GD_OUT_0 := 0;" in case(1) and "GD_OUT_1 := 0;" in case(2)
+    # without requests there are no internal request variables nor handshake pairs
+    assert "INTERN_0" not in source and "INTERN_1" not in source
+    assert "IF NOT GD_OUT_0 &" not in source and "IF NOT GD_OUT_1 &" not in source
 
-    for k_tct, k_mono in {1: 1, 2: 2, 4: 3, 5: 4, 6: 5, 7: 6}.items():
-        case, guards = blocks(tct, k_tct)
-        assert blocks(source, k_mono) == (case.replace(f"slt{k_tct}", f"slt{k_mono}"),
-                                          [g.replace(f"state[{k_tct}]", f"state[{k_mono}]") for g in guards])
+
+# ---------------------------------------------------------------------------------------
+# Small factory with local modular control: two supervisors equal to the monolithic one
+# ---------------------------------------------------------------------------------------
+
+@pytest.fixture
+def local_modular_small_factory(tmp_path, monkeypatch):
+    names = run_cells("LCS_local_modular_control_small_factory_openplc.ipynb", "lm",
+                      (5, 7, 9, 11, 13, 15, 17), tmp_path, monkeypatch)
+    names["tmp_path"] = tmp_path
+    return names
+
+
+def test_local_modular_small_factory_equals_the_monolithic_supervisor(local_modular_small_factory,
+                                                                     tmp_path, monkeypatch):
+    names = local_modular_small_factory
+    S1, S2 = names["S1"], names["S2"]
+    assert size(S1) == (35, 83) and size(S2) == (37, 169) and size(names["SUP"]) == (141, 613)
+    for S, plant in ((S1, names["G1"]), (S2, names["G2"])):
+        assert deslab.iscontrollable(S, plant) and deslab.coac(S).X == S.X
+    # local plants: the components that share events with the specifications
+    assert deslab.are_isomorphic(names["G1"], names["model_M1"] // names["model_M2"])
+    assert deslab.are_isomorphic(names["G2"], names["G"])
+    assert deslab.nonconflict(S1, S2)
+    assert deslab.are_isomorphic(S1 // S2, names["SUP"])
+    # the models and signal map of the monolithic notebook, with the requests e1 and e2 in place
+    # of the commands M1-ON and M2-ON, which the pairs give; the same auxiliary automata
+    mono = run_cells("LCS_monolithic_control_small_factory_openplc.ipynb", "sm", (5, 7, 9, 13, 15),
+                     tmp_path, monkeypatch)
+    for model in ("model_M1", "model_M2", "B_A", "pulsador", "REQ_Buffer", "REQ_start", "REQ_repair"):
+        renamed = as_commands(names[model])
+        assert deslab.are_isomorphic(renamed, mono[model]) and renamed.Sigcon == mono[model].Sigcon, model
+    assert deslab.are_isomorphic(as_commands(names["SUP"]), mono["SUP"])
+    assert notebook_cells("LCS_local_modular_control_small_factory_openplc.ipynb")["lm-13"] == \
+        notebook_cells("LCS_monolithic_control_small_factory_openplc.ipynb")["sm-13"]
+    assert {e: s for e, s in names["actuators"].items() if e not in REQUESTS} == mono["actuators"]
+    assert names["Mask"] == mono["Mask"] and names["parejas"] == [("e2", "M2-ON"), ("e1", "M1-ON")]
+
+
+def test_local_modular_small_factory_program(local_modular_small_factory):
+    names = local_modular_small_factory
+    source = names["st"]
+    assert (names["tmp_path"] / "ST_Generated" / "Small_factory_modular_local.st").read_text(encoding="utf-8") == source
+    assert source == (NOTEBOOKS / "ST_generated" / "Small_factory_modular_local.st").read_text(encoding="utf-8")
+    # two supervisors and six auxiliary automata, without coordinator
+    assert "_C :" not in source and "state : ARRAY [0..8] OF DINT;" in source
+    # the shared requests e1 and e2 change only when both supervisors propose them
+    for signal in ("INTERN_0", "INTERN_1"):
+        assert f"{signal}_G : ARRAY [0..2] OF BOOL;" in source
+        assert (f"\tIF {signal}_G[0] <> {signal}_G[1] THEN\n\t\t\t{signal}_G[0] := {signal};\n"
+                f"\t\t\t{signal}_G[1] := {signal};\n") in source
+        assert f"{signal}_G[0] := 1;" in source and f"{signal}_G[1] := 1;" in source

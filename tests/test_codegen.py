@@ -44,13 +44,38 @@ def test_auxiliary_holds_command_off_until_completion_signal_clears(tmp_path):
                 [0], [0, 1], Sigcon=["off"])
     mapping = dict(signals(), off="Motor:OFF", clear="Done:OFF:%IX0.0")
     source = generate_ST_OPENPLC([machine()], actuators=mapping,
-                                Isolated=[[reset], []], output_dir=tmp_path)
+                                Isolated=[reset], output_dir=tmp_path)
     assert source.index("Motor := 1;") < source.index("Motor := 0;")
     assert "state[1] = 0 & RE_Done.Q" in source
     assert "state[1] = 1 & NOT Done" in source
     assert "CASE state[1] OF" in source
     # An OFF self-loop emits its output each scan, without changing state.
     assert "state[1] = 1 & NOT Motor" not in source
+
+
+def test_event_pairs_turn_a_request_into_a_command(tmp_path):
+    request = fsa(["idle", "busy"], ["ask", "done"],
+                  [("idle", "ask", "busy"), ("busy", "done", "idle")],
+                  ["idle"], ["idle"], Sigcon=["ask"])
+    mapping = dict(signals(), ask="INTERN_0:ON")
+    source = generate_ST_OPENPLC([request], actuators=mapping, event_pairs=[("ask", "start")],
+                                output_dir=tmp_path)
+    assert "INTERN_0 := 1;" in source and "state[0] = 0 & INTERN_0" in source
+    assert "IF NOT Motor & INTERN_0 THEN\n\t\tMotor := 1;\n" in source
+    assert "ELSIF Motor & INTERN_0 THEN\n\t\tINTERN_0 := 0;\n" in source
+    without = generate_ST_OPENPLC([request], actuators=mapping, namest="sin", output_dir=tmp_path)
+    assert "Motor := 1;" not in without
+
+
+def test_isolated_lists_only_automata(tmp_path):
+    reset = fsa([0], ["off"], [(0, "off", 0)], [0], [0], Sigcon=["off"])
+    with pytest.raises(ValueError, match="event_pairs="):
+        generate_ST_OPENPLC([machine()], actuators=dict(signals(), off="Motor:OFF"),
+                            Isolated=[[reset], []], output_dir=tmp_path)
+    with pytest.raises(ValueError, match="pairs"):
+        generate_ST_OPENPLC([machine()], actuators=signals(), event_pairs=[("start",)],
+                            output_dir=tmp_path)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_startup_preserves_original_held_level_protocol(tmp_path):

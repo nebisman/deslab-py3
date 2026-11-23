@@ -142,7 +142,8 @@ def factory(tmp_path):
     cells = {cell["id"]: "".join(cell["source"]) for cell in json.loads(notebook.read_text(encoding="utf-8"))["cells"]}
     namespace = dict(fsa=fsa, generate_ST_OPENPLC=generate_ST_OPENPLC, iscontrollable=iscontrollable,
                      product=product, supcontrollable=supcontrollable, trim=trim,
-                     mostrar=lambda *models: None, repo_local=tmp_path, Path=Path)
+                     mostrar=lambda *models: None, draw=lambda *models, **options: None,
+                     repo_local=tmp_path, Path=Path)
     for index in (4, 6, 8, 12, 18, 20, 22):
         exec(compile(cells[f"factory-{index:02d}"], str(notebook), "exec"), namespace)
     return namespace["S"], namespace["st"]

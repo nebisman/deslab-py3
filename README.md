@@ -109,7 +109,9 @@ st = generate_ST_OPENPLC([S], plants=[G], actuators=actuators,
 ```
 
 Devuelve el texto ST y escribe `ST_Generated/controlador.st`. Con varios supervisores,
-se requiere una planta por supervisor en el mismo orden. La función y sus ayudantes
+se requiere una planta por supervisor en el mismo orden. Los autómatas auxiliares, que tienen
+su propio estado pero no se sintetizan, se pasan en `Isolated`, y las parejas que convierten una
+petición interna en una orden, cuando hacen falta, en `event_pairs`. La función y sus ayudantes
 privados están en [`deslab/toolboxes/codegen.py`](deslab/toolboxes/codegen.py), sin dependencias adicionales.
 Su docstring documenta la API; el [notebook completo](notebooks/pequena_factoria_sin_fallas.ipynb)
 presenta un caso ejecutable con señales y auxiliares de rearme.
@@ -127,10 +129,17 @@ la línea de transferencia y la línea de ensamble:
   los autómatas auxiliares de las máquinas, el buffer, la cuchilla y la reparación. Explica
   `state_order` y `transition_order`, que numeran los estados y ordenan las transiciones como TCT.
 - [Pequeña fábrica con un supervisor monolítico](notebooks/factory_io/LCS_monolithic_control_small_factory_openplc.ipynb):
-  un solo supervisor para las máquinas y la cinta de alimentación. Los modelos tienen dos cambios:
-  el pulsador de arranque es un componente de la planta, en lugar de autolazos de `start`, y una
-  sola especificación, `REQ_start`, pide esperarlo antes de cualquier orden. Comprueba que el
-  supervisor es igual a los dos supervisores de TCT y explica qué cambia en el programa del PLC.
+  un solo supervisor para las máquinas y la cinta de alimentación. Los modelos tienen tres cambios:
+  el pulsador de arranque es un componente de la planta, en lugar de autolazos de `start`; una
+  sola especificación, `REQ_start`, pide esperarlo antes de cualquier orden; y el supervisor da
+  directamente las órdenes `M1-ON` y `M2-ON`, sin peticiones ni parejas. Explica qué cambia en el
+  programa del PLC.
+- [Pequeña fábrica con control modular local](notebooks/factory_io/LCS_local_modular_control_small_factory_openplc.ipynb):
+  los modelos del monolítico con dos supervisores, cada uno con su planta local: uno para
+  `REQ_Buffer` y `REQ_repair` y otro para `REQ_start`. Comprueba que son no conflictivos y que
+  juntos son iguales al supervisor monolítico. Como los dos comparten las órdenes de arranque, las
+  dan con las peticiones $e_1$ y $e_2$ y las parejas, y el notebook explica cómo el programa
+  combina las peticiones compartidas.
 - [Línea de transferencia](notebooks/factory_io/LCS_modular_control_transfer_line_openplc.ipynb):
   la versión DESlab de `Transfer_line.py`, con cuatro supervisores locales y dos supervisores de
   la línea que son conflictivos; el generador detecta el conflicto y agrega el coordinador.
@@ -140,7 +149,8 @@ la línea de transferencia y la línea de ensamble:
 Los notebooks de la pequeña fábrica con averías, la línea de transferencia y la línea de ensamble
 definen sus modelos con `fsa` y solo con los autolazos necesarios, y generan un programa idéntico,
 byte por byte, al que genera TCT con el script correspondiente de TCT_Proyect (copiados en la
-misma carpeta). Los programas para las escenas, incluido el del supervisor monolítico, están en
+misma carpeta). Los programas para las escenas, incluidos los del supervisor monolítico y del
+control modular local, están en
 [`notebooks/factory_io/ST_generated`](notebooks/factory_io/ST_generated). La prueba
 [`tests/test_openplc_notebooks.py`](tests/test_openplc_notebooks.py) ejecuta las celdas de los
 notebooks, simula scan por scan el programa de la pequeña fábrica con un supervisor, compara los

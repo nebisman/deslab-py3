@@ -244,21 +244,19 @@ class _STEmitter:
         return out
 
 
-    def _emit(self, supervisors, plants, actuators, namest, Mask, Isolated, initial):
+    def _emit(self, supervisors, plants, actuators, namest, Mask, auxiliary, event_pairs, initial):
         # Generate the full ST code
         if not supervisors:
             raise ValueError("At least one supervisor is required")
         if len(supervisors) > 1 and len(plants) != len(supervisors):
             raise ValueError("Supply one plant per supervisor, in the same order")
-        if Isolated and len(Isolated) != 2:
-            raise ValueError("Isolated must contain [automaton_names, event_pairs]")
-        names = [*supervisors, *(Isolated[0] if Isolated else [])]
+        names = [*supervisors, *auxiliary]
         required = set()
         for name in names:
             controlled, uncontrolled = self._events(name)
             required.update(controlled)
             required.update(uncontrolled)
-        for first, second in Isolated[1] if Isolated else ():
+        for first, second in event_pairs:
             required.update((first, second))
         if initial != "null":
             required.add(initial)
@@ -316,7 +314,6 @@ class _STEmitter:
                         index for index in (i, j) if event in self._events(supervisors[index])[0]
                     ]
 
-        auxiliary, event_pairs = Isolated or ((), ())
         controlled = []
         uncontrolled = []
         cases = []
@@ -566,7 +563,7 @@ class _STEmitter:
 
 def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controller",
                         Mask=None, Isolated=None, initial="null", *,
-                        output_dir="ST_Generated", event_order=None,
+                        output_dir="ST_Generated", event_pairs=(), event_order=None,
                         state_order=None, transition_order=None):
     """Generate, save and return an OpenPLC Structured Text program.
 
@@ -593,10 +590,10 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
     Mask : dict, optional
         PLC Boolean source or expression mapped to a list of
         ``(mirror_variable, address)`` pairs. Mirrors are assigned each scan.
-    Isolated : pair, optional
-        ``[auxiliary_automata, event_pairs]``. Auxiliary automata have their own
-        states but do not participate in supervisor coordination. Each
-        ``(trigger_event, output_event)`` pair adds direct handshake logic.
+    Isolated : iterable of fsa, optional
+        Auxiliary automata. Each gets its own ST state variable, after the
+        supervisors', and writes the outputs of its controllable events, but
+        does not participate in supervisor coordination.
     initial : event, optional
         ON-level startup signal that latches controller enable; ``"null"``
         starts immediately. The controller body starts on the following scan,
@@ -604,6 +601,14 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
         is also a supervisor event, keep it high until that event is consumed.
     output_dir : str or pathlib.Path, keyword-only
         Destination directory, created if needed (default ``"ST_Generated"``).
+    event_pairs : iterable of pairs, optional, keyword-only
+        ``(request_event, command_event)`` pairs of direct handshake logic, as
+        in TCT's generator: while the request's condition holds, the command's
+        signal is set to 1 if it is low; once it is high, the request's
+        variable (and its shared-request proposal, if any) is reset to 0. Meant
+        for internal request signals, for example a request that several
+        supervisors share; a supervisor that alone gives a command can use the
+        command event directly.
     event_order : iterable, optional, keyword-only
         Branch ordering; unspecified events follow in string order. Competing
         controllable choices use the emitted random selector, so this is not
@@ -641,9 +646,13 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
     plants = tuple(plants)
     if (plants or len(supervisors) > 1) and len(plants) != len(supervisors):
         raise ValueError("Supply one plant per supervisor, in the same order")
-    if Isolated and len(Isolated) != 2:
-        raise ValueError("Isolated must contain [automata, event_pairs]")
-    targets = {id(model) for model in (*supervisors, *(Isolated[0] if Isolated else ()))}
+    auxiliary = tuple(Isolated or ())
+    if any(not isinstance(model, fsa) for model in auxiliary):
+        raise ValueError("Isolated must list auxiliary automata; pass event pairs with event_pairs=")
+    event_pairs = [tuple(pair) for pair in event_pairs]
+    if any(len(pair) != 2 for pair in event_pairs):
+        raise ValueError("event_pairs must contain (request_event, command_event) pairs")
+    targets = {id(model) for model in (*supervisors, *auxiliary)}
 
     def by_identity(option, label):
         option = dict(option or {})
@@ -670,14 +679,11 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
             emitter.controllable[name] = supervisor.Sigcon
         emitter._prepare_emission(name)
         supervisor_names.append(name)
-    isolated = []
-    if Isolated:
-        isolated_names = []
-        for index, model in enumerate(Isolated[0]):
-            name = f"isolated_{index}"
-            emitter.models[name] = model
-            emitter._prepare_emission(name)
-            isolated_names.append(name)
-        isolated = [isolated_names, Isolated[1]]
+    isolated_names = []
+    for index, model in enumerate(auxiliary):
+        name = f"isolated_{index}"
+        emitter.models[name] = model
+        emitter._prepare_emission(name)
+        isolated_names.append(name)
     return emitter._emit(supervisor_names, plant_names, actuators or {}, namest,
-                                       Mask or {}, isolated, initial)
+                         Mask or {}, isolated_names, event_pairs, initial)
