@@ -134,6 +134,11 @@ la línea de transferencia y la línea de ensamble:
   sola especificación, `REQ_start`, pide esperarlo antes de cualquier orden; y el supervisor da
   directamente las órdenes `M1-ON` y `M2-ON`, sin peticiones ni parejas. Explica qué cambia en el
   programa del PLC.
+- [Pequeña fábrica con un supervisor para las máquinas y otro para la alimentación](notebooks/factory_io/LCS_modular_by_device_small_factory_openplc.ipynb):
+  la versión modular del monolítico, con los mismos eventos, planta y especificaciones. Divide
+  `REQ_start` por equipo para que los dos supervisores no compartan órdenes; cada uno da las suyas
+  directamente, sin parejas. Comprueba que juntos son iguales al supervisor monolítico y explica
+  qué cambia en el PLC.
 - [Pequeña fábrica con control modular local](notebooks/factory_io/LCS_local_modular_control_small_factory_openplc.ipynb):
   los modelos del monolítico con dos supervisores, cada uno con su planta local: uno para
   `REQ_Buffer` y `REQ_repair` y otro para `REQ_start`. Comprueba que son no conflictivos y que
@@ -149,8 +154,8 @@ la línea de transferencia y la línea de ensamble:
 Los notebooks de la pequeña fábrica con averías, la línea de transferencia y la línea de ensamble
 definen sus modelos con `fsa` y solo con los autolazos necesarios, y generan un programa idéntico,
 byte por byte, al que genera TCT con el script correspondiente de TCT_Proyect (copiados en la
-misma carpeta). Los programas para las escenas, incluidos los del supervisor monolítico y del
-control modular local, están en
+misma carpeta). Los programas para las escenas, incluidos los del supervisor monolítico y de sus
+dos versiones modulares, están en
 [`notebooks/factory_io/ST_generated`](notebooks/factory_io/ST_generated). La prueba
 [`tests/test_openplc_notebooks.py`](tests/test_openplc_notebooks.py) ejecuta las celdas de los
 notebooks, simula scan por scan el programa de la pequeña fábrica con un supervisor, compara los

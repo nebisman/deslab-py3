@@ -555,3 +555,52 @@ def test_local_modular_small_factory_program(local_modular_small_factory):
         assert (f"\tIF {signal}_G[0] <> {signal}_G[1] THEN\n\t\t\t{signal}_G[0] := {signal};\n"
                 f"\t\t\t{signal}_G[1] := {signal};\n") in source
         assert f"{signal}_G[0] := 1;" in source and f"{signal}_G[1] := 1;" in source
+
+
+# ---------------------------------------------------------------------------------------
+# Small factory with one supervisor for the machines and one for the feeder, with the events,
+# plant and specifications of the monolithic notebook
+# ---------------------------------------------------------------------------------------
+
+@pytest.fixture
+def modular_by_device_small_factory(tmp_path, monkeypatch):
+    names = run_cells("LCS_modular_by_device_small_factory_openplc.ipynb", "me",
+                      (5, 7, 9, 11, 13, 15, 17, 19), tmp_path, monkeypatch)
+    names["tmp_path"] = tmp_path
+    return names
+
+
+def test_modular_by_device_small_factory_equals_the_monolithic_supervisor(modular_by_device_small_factory):
+    names = modular_by_device_small_factory
+    S, s = names["SUP_maq"], names["sup_BA"]
+    assert size(S) == (36, 119) and size(s) == (5, 9) and size(names["SUP"]) == (141, 613)
+    for sup, plant in ((S, names["G_maq"]), (s, names["G_BA"])):
+        assert deslab.iscontrollable(sup, plant) and deslab.coac(sup).X == sup.X
+    # REQ_start is split by device, so the supervisors share no order, only the push button
+    assert deslab.are_isomorphic(names["REQ_start"], names["REQ_start_M"] // names["REQ_start_BA"])
+    assert S.Sigma & s.Sigma == {"start"} and not S.Sigcon & s.Sigcon
+    assert deslab.nonconflict(S, s) and deslab.are_isomorphic(S // s, names["SUP"])
+    # same events, models, auxiliary automata and signal map as the monolithic notebook
+    device, mono = notebook_cells("LCS_modular_by_device_small_factory_openplc.ipynb"), \
+        notebook_cells("LCS_monolithic_control_small_factory_openplc.ipynb")
+    assert all(device[f"me-{d}"] == mono[f"sm-{m}"] for d, m in (("05", "05"), ("07", "07"),
+                                                                ("15", "13"), ("17", "15")))
+    check_reduced_supervisors(names, {"SUP_maq": ("G_maq", 4), "sup_BA": ("G_BA", 2)})
+
+
+def test_modular_by_device_small_factory_program(modular_by_device_small_factory):
+    names = modular_by_device_small_factory
+    source = names["st"]
+    assert (names["tmp_path"] / "ST_Generated" / "Small_factory_modular_equipos.st").read_text(encoding="utf-8") == source
+    assert source == (NOTEBOOKS / "ST_generated" / "Small_factory_modular_equipos.st").read_text(encoding="utf-8")
+    # two supervisors and six auxiliary automata, without coordinator nor shared orders
+    assert "state : ARRAY [0..8] OF DINT;" in source and "_C :" not in source and "_G :" not in source
+
+    def case(k):
+        start = source.index(f"CASE state[{k}] OF")
+        return source[start:source.index("CASE state[", start + 1)]
+
+    # SUP_maq gives the start orders, sup_BA drives the feeder, the auxiliary M1 switches M1-ON off
+    assert "GD_OUT_0 := 1;" in case(0) and "GD_OUT_1 := 1;" in case(0) and "GD_OUT_2" not in case(0)
+    assert "GD_OUT_2 := 1;" in case(1) and "GD_OUT_2 := 0;" in case(1) and "GD_OUT_0" not in case(1)
+    assert "GD_OUT_0 := 0;" in case(2)

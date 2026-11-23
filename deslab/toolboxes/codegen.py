@@ -222,10 +222,10 @@ class _STEmitter:
         RANDOM += "\n\t\tINIT : BOOL;\n\tEND_VAR\n\tVAR_OUTPUT\n\t\tOUT : DINT;\n\tEND_VAR\n"
         RANDOM += "\n\tIF INIT = 0 THEN\n\t\t{#include <stdio.h>}\n\t\t{#include <stdlib.h>}\n\t\tIN := 1;\n\tEND_IF;"
         RANDOM += "\n\tIF M = 0 and IN = 1 THEN\n\t\t{SetFbVar(OUT,rand())}\n\tEND_IF;\nEND_FUNCTION_BLOCK\n"
-        HEADER = "PROGRAM tesis0\n"
+        HEADER = "PROGRAM supcon\n"
         END = "\nEND_PROGRAM\n\n"
         END += "CONFIGURATION Config0\n\n\tRESOURCE Res0 ON PLC\n\t\tTASK task0(INTERVAL := T#20ms,PRIORITY := 0);"
-        END += "\n\t\tPROGRAM instance0 WITH task0 : tesis0;" + "\n\tEND_RESOURCE\nEND_CONFIGURATION"
+        END += "\n\t\tPROGRAM instance0 WITH task0 : supcon;" + "\n\tEND_RESOURCE\nEND_CONFIGURATION"
 
         intersections = {}
         coordinators = []
