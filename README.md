@@ -124,12 +124,9 @@ la línea de transferencia y la línea de ensamble:
   el caso de introducción. Explica cómo se definen el contrato con las máquinas, el diccionario
   `actuators` y los autómatas de rearme, revisa el programa línea por línea contra el supervisor
   y sigue su ejecución scan por scan.
-- [Pequeña fábrica con averías](notebooks/factory_io/LCS_modular_control_small_factory_openplc.ipynb):
-  la versión DESlab de `Small_factory.py`, con un supervisor, el supervisor de la alimentación y
-  los autómatas auxiliares de las máquinas, el buffer, la cuchilla y la reparación. Explica
-  `state_order` y `transition_order`, que numeran los estados y ordenan las transiciones como TCT.
 - [Pequeña fábrica con un supervisor monolítico](notebooks/factory_io/LCS_monolithic_control_small_factory_openplc.ipynb):
-  un solo supervisor para las máquinas y la cinta de alimentación. Los modelos tienen tres cambios:
+  un solo supervisor para las máquinas y la cinta de alimentación, con los modelos de
+  `Small_factory.py` (TCT_Proyect) y tres cambios:
   el pulsador de arranque es un componente de la planta, en lugar de autolazos de `start`; una
   sola especificación, `REQ_start`, pide esperarlo antes de cualquier orden; y el supervisor da
   directamente las órdenes `M1-ON` y `M2-ON`, sin peticiones ni parejas. Explica qué cambia en el
@@ -151,15 +148,15 @@ la línea de transferencia y la línea de ensamble:
 - [Línea de ensamble](notebooks/factory_io/LCS_assembly_line_openplc.ipynb): la versión DESlab
   de `Assembly_line.py`, con cinco supervisores locales.
 
-Los notebooks de la pequeña fábrica con averías, la línea de transferencia y la línea de ensamble
-definen sus modelos con `fsa` y solo con los autolazos necesarios, y generan un programa idéntico,
-byte por byte, al que genera TCT con el script correspondiente de TCT_Proyect (copiados en la
-misma carpeta). Los programas para las escenas, incluidos los del supervisor monolítico y de sus
+Los notebooks de la línea de transferencia y la línea de ensamble definen sus modelos con `fsa` y
+solo con los autolazos necesarios, y generan un programa idéntico, byte por byte, al que genera TCT
+con el script correspondiente de TCT_Proyect (copiados en la misma carpeta), salvo el nombre del
+programa: DESlab lo llama `supcon` y TCT `tesis0`. Los programas para las escenas, incluidos los del supervisor monolítico y de sus
 dos versiones modulares, están en
 [`notebooks/factory_io/ST_generated`](notebooks/factory_io/ST_generated). La prueba
 [`tests/test_openplc_notebooks.py`](tests/test_openplc_notebooks.py) ejecuta las celdas de los
 notebooks, simula scan por scan el programa de la pequeña fábrica con un supervisor, compara los
-de TCT con la huella SHA-256 de los programas de TCT y comprueba que los archivos de
+de TCT, con el nombre `tesis0`, con la huella SHA-256 de los programas de TCT y comprueba que los archivos de
 `ST_generated` son los que generan los notebooks.
 
 Las salidas conservan su valor hasta que otra acción las cambie. El ejemplo explicita

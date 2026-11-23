@@ -19,7 +19,7 @@ FUNCTION_BLOCK random_number
 		{SetFbVar(OUT,rand())}
 	END_IF;
 END_FUNCTION_BLOCK
-PROGRAM tesis0
+PROGRAM supcon
 	VAR
 		random : random_number;
 		random_num : DINT;
@@ -1698,6 +1698,6 @@ CONFIGURATION Config0
 
 	RESOURCE Res0 ON PLC
 		TASK task0(INTERVAL := T#20ms,PRIORITY := 0);
-		PROGRAM instance0 WITH task0 : tesis0;
+		PROGRAM instance0 WITH task0 : supcon;
 	END_RESOURCE
 END_CONFIGURATION

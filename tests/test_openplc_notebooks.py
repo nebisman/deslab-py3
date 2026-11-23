@@ -2,9 +2,9 @@
 
 The notebooks' own cells are executed (without the Colab setup and drawings). The program of
 the small factory with one supervisor is simulated scan by scan with machines that follow the
-notebook's contract. The programs of the small factory with breakdowns, the transfer line and
-the assembly line must equal the ones generated with TCT by TCT_Proyect, and every self-loop
-of their models must be needed.
+notebook's contract. The programs of the transfer line and the assembly line must equal the
+ones generated with TCT by TCT_Proyect, up to the name of the program (DESlab names it supcon,
+TCT tesis0), and every self-loop of their models must be needed.
 """
 
 import hashlib
@@ -165,19 +165,16 @@ def test_pequena_factoria_program(pequena_factoria):
 
 
 # ---------------------------------------------------------------------------------------
-# Small factory with breakdowns and transfer line: same programs as TCT_Proyect
+# Transfer line: same program as TCT_Proyect
 # ---------------------------------------------------------------------------------------
 
-# SHA-256 of the programs generated with TCT by TCT_Proyect/Small_factory.py and by
-# TCT_Proyect/Transfer_line.py (with its generate_ST_OPENPLC call taken out of the comment).
-# TCT visits the requests shared by the transfer line supervisors in Python set order, so it
-# writes one of two programs depending on PYTHONHASHSEED; DESlab's is the one of PYTHONHASHSEED=2.
-TCT_SMALL_FACTORY_SHA256 = "582689a29b0551e9d76f1f26906075c45b790cdd5defcfc1e97696c72b687b40"
+# SHA-256 of the program generated with TCT by TCT_Proyect/Transfer_line.py (with its
+# generate_ST_OPENPLC call taken out of the comment). TCT visits the requests shared by the
+# transfer line supervisors in Python set order, so it writes one of two programs depending on
+# PYTHONHASHSEED; DESlab's is the one of PYTHONHASHSEED=2.
 TCT_TRANSFER_LINE_SHA256 = "fd43dd2a774fb4144f180e979153a34896969d0e77fdd498129cc106d6a26fcb"
 
-# supervisor: (plant components, specifications), as in the notebooks
-SMALL_FACTORY_MODELS = {"SUP": (["model_M1", "model_M2"], ["REQ_Buffer", "REQ_start", "REQ_repair"]),
-                        "sup_BA": (["B_A"], ["start"])}
+# supervisor: (plant components, specifications), as in the notebook
 TRANSFER_LINE_MODELS = {"sup_M1": (["Conveyor_M1"], ["M1_piece"]),
                         "sup_B1": (["Conveyor_buffer", "Clamp", "Blade"], ["event_2", "Buffer_join", "Camp_REQ"]),
                         "sup_B2": (["Conveyor_buffer2"], ["Buffer2_join"]),
@@ -192,6 +189,13 @@ def size(S):
 
 def sha256(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def as_tct(source):
+    """The program with the name that TCT gives it: tesis0 instead of DESlab's supcon."""
+    assert source.count("PROGRAM supcon\n") == 1 and source.count("WITH task0 : supcon;") == 1
+    return source.replace("PROGRAM supcon\n", "PROGRAM tesis0\n").replace(
+        "WITH task0 : supcon;", "WITH task0 : tesis0;")
 
 
 def compose(models):
@@ -258,27 +262,6 @@ def check_self_loops(names, table):
     return loops, shared
 
 
-@pytest.fixture
-def small_factory(tmp_path, monkeypatch):
-    names = run_cells("LCS_modular_control_small_factory_openplc.ipynb", "sf",
-                      (5, 7, 9, 11, 13, 15, 17), tmp_path, monkeypatch)
-    names["cells"] = {cell["id"]: "".join(cell["source"]) for cell in json.loads(
-        (NOTEBOOKS / "LCS_modular_control_small_factory_openplc.ipynb").read_text(encoding="utf-8"))["cells"]}
-    names["tmp_path"] = tmp_path
-    return names
-
-
-def test_small_factory_matches_tct(small_factory):
-    names = small_factory
-    assert size(names["SUP"]) == (36, 119) and size(names["sup_BA"]) == (5, 9)
-    # REQ_repair's repair events r1, r2 are not plant events: the supervisor never uses them
-    assert {e for x in names["SUP"].X for e in names["SUP"].Gamma(x)} == names["SUP"].Sigma - {"r1", "r2"}
-    source = names["st"]
-    assert (names["tmp_path"] / "ST_Generated" / "Small_factory.st").read_text(encoding="utf-8") == source
-    assert sha256(source) == TCT_SMALL_FACTORY_SHA256
-    assert source == (NOTEBOOKS / "ST_generated" / "Small_factory.st").read_text(encoding="utf-8")
-
-
 # number of states of the reduced supervisors that TCT's supreduce (pitct 1.0.3) computes for
 # the same supervisors and plants; DESlab's supreduce gives automata isomorphic to TCT's
 def check_reduced_supervisors(names, sizes):
@@ -286,26 +269,6 @@ def check_reduced_supervisors(names, sizes):
         S, G = names[supervisor], names[plant]
         R = deslab.supreduce(S, G)
         assert len(R) == size and control_equivalent(R, S, G), supervisor
-
-
-def test_small_factory_reduced_supervisors_match_tct(small_factory):
-    G = small_factory["model_M1"] // small_factory["model_M2"]
-    check_reduced_supervisors({**small_factory, "G": G}, {"SUP": ("G", 4), "sup_BA": ("B_A", 2)})
-
-
-def test_small_factory_self_loops_are_all_needed(small_factory):
-    assert check_self_loops(small_factory, SMALL_FACTORY_MODELS) == (3, 2)
-
-
-def test_small_factory_self_loops_left_out_do_not_change_the_program(small_factory):
-    names = small_factory
-    M1 = names["M1"]
-    for e in ("M1-ON", "M1-Busy", "M1-END"):        # the self-loops of TCT's M1
-        for x in sorted(M1.X):
-            if e not in M1.Gamma(x):
-                M1 = M1.addselfloop(x, e)
-    auxiliary = [M1 if A is names["M1"] else A for A in names["auxiliares"]]
-    assert sha256(rerun(names, "sf-17", auxiliares=auxiliary)) == TCT_SMALL_FACTORY_SHA256
 
 
 @pytest.fixture
@@ -326,7 +289,7 @@ def test_transfer_line_matches_tct(transfer_line):
     source = names["st"]
     assert "aux : BOOL := 0;" in source and "INTERN_1_C[1] := 1;" in source
     assert (names["tmp_path"] / "ST_Generated" / "transfer_line.st").read_text(encoding="utf-8") == source
-    assert sha256(source) == TCT_TRANSFER_LINE_SHA256
+    assert sha256(as_tct(source)) == TCT_TRANSFER_LINE_SHA256
     assert source == (NOTEBOOKS / "ST_generated" / "transfer_line.st").read_text(encoding="utf-8")
     # BLADE_LIMIT is controllable in Transfer_line.py, so the program writes that input
     assert "GD_IN_4 := 1;" in source
@@ -350,7 +313,7 @@ def test_transfer_line_self_loops_left_out_do_not_change_the_program(transfer_li
     sup_TU = names["local"](names["P_TU"], TU_Function, "sup_TU")
     assert same_language(sup_TU, names["sup_TU"])
     auxiliary = [sup_TU if A is names["sup_TU"] else A for A in names["auxiliares"]]
-    assert sha256(rerun(names, "tl-17", auxiliares=auxiliary)) == TCT_TRANSFER_LINE_SHA256
+    assert sha256(as_tct(rerun(names, "tl-17", auxiliares=auxiliary))) == TCT_TRANSFER_LINE_SHA256
 
 
 # ---------------------------------------------------------------------------------------
@@ -379,7 +342,7 @@ def test_assembly_line_matches_tct(assembly_line):
         [(7, 25), (32, 109), (40, 152), (7, 25), (6, 28)]
     source = assembly_line["st"]
     assert (assembly_line["tmp_path"] / "ST_Generated" / "Assembly_line.st").read_text(encoding="utf-8") == source
-    assert hashlib.sha256(source.encode("utf-8")).hexdigest() == TCT_ASSEMBLY_LINE_SHA256
+    assert sha256(as_tct(source)) == TCT_ASSEMBLY_LINE_SHA256
     assert source == (NOTEBOOKS / "ST_generated" / "Assembly_line.st").read_text(encoding="utf-8")
 
 
@@ -429,7 +392,7 @@ def test_assembly_line_self_loops_are_all_needed(assembly_line):
 
 
 # ---------------------------------------------------------------------------------------
-# Small factory with one monolithic supervisor instead of TCT's SUP and sup_BA
+# Small factory with one monolithic supervisor
 # ---------------------------------------------------------------------------------------
 
 # the monolithic notebook gives the start commands M1-ON and M2-ON where TCT used the requests
@@ -456,7 +419,7 @@ def notebook_cells(name):
         (NOTEBOOKS / name).read_text(encoding="utf-8"))["cells"]}
 
 
-def test_monolithic_small_factory_equals_both_tct_supervisors(monolithic_small_factory, tmp_path, monkeypatch):
+def test_monolithic_small_factory_supervisor(monolithic_small_factory):
     names = monolithic_small_factory
     S = names["SUP"]
     assert size(S) == (141, 613)
@@ -470,13 +433,6 @@ def test_monolithic_small_factory_equals_both_tct_supervisors(monolithic_small_f
     G = names["model_M1"] // names["model_M2"] // names["B_A"]
     E = names["REQ_Buffer"] // names["REQ_start"] // names["REQ_repair"]
     assert size(deslab.supcontrollable(G // E, G)) == (1, 0)
-    # same plant and supervisor as the TCT version, where start is a self-loop and REQ_start and
-    # start are two specifications of two supervisors
-    tct = run_cells("LCS_modular_control_small_factory_openplc.ipynb", "sf", (5, 7, 9, 11),
-                    tmp_path, monkeypatch)
-    plant = as_commands(tct["model_M1"] // tct["model_M2"] // tct["B_A"])
-    assert deslab.are_isomorphic(names["G"], plant) and names["G"].Sigcon == plant.Sigcon
-    assert deslab.are_isomorphic(S, as_commands(tct["SUP"] // tct["sup_BA"]))
 
 
 def test_monolithic_small_factory_program(monolithic_small_factory):
