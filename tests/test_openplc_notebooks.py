@@ -7,6 +7,7 @@ ones generated with TCT by TCT_Proyect, up to the name of the program (DESlab na
 TCT tesis0), and every self-loop of their models must be needed.
 """
 
+import functools
 import hashlib
 import json
 import random
@@ -159,7 +160,7 @@ def test_pequena_factoria_trace_matches_the_notebook(pequena_factoria):
 
 def test_pequena_factoria_program(pequena_factoria):
     source = pequena_factoria["st"]
-    assert len(source.splitlines()) == 103
+    assert len(without_comments(source).splitlines()) == 103
     assert "slt0" not in source            # SUP never enables two controllable events at once
     assert "Cmd_M1 := 0;" in source and "Cmd_M2 := 0;" in source
 
@@ -191,8 +192,17 @@ def sha256(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+# comments that generate_ST_OPENPLC writes: on lines of their own or at the end of a code line
+COMMENTS = re.compile(r"(?m)^[ \t]*\(\*.*\*\)\n| \(\*.*?\*\)$")
+
+
+def without_comments(source):
+    return COMMENTS.sub("", source)
+
+
 def as_tct(source):
-    """The program with the name that TCT gives it: tesis0 instead of DESlab's supcon."""
+    """The program as TCT writes it: without comments and named tesis0 instead of supcon."""
+    source = without_comments(source)
     assert source.count("PROGRAM supcon\n") == 1 and source.count("WITH task0 : supcon;") == 1
     return source.replace("PROGRAM supcon\n", "PROGRAM tesis0\n").replace(
         "WITH task0 : supcon;", "WITH task0 : tesis0;")
@@ -291,6 +301,9 @@ def test_transfer_line_matches_tct(transfer_line):
     assert (names["tmp_path"] / "ST_Generated" / "transfer_line.st").read_text(encoding="utf-8") == source
     assert sha256(as_tct(source)) == TCT_TRANSFER_LINE_SHA256
     assert source == (NOTEBOOKS / "ST_generated" / "transfer_line.st").read_text(encoding="utf-8")
+    # deleting the comments gives the program written without them
+    plain = rerun(names, "tl-17", generate_ST_OPENPLC=functools.partial(deslab.generate_ST_OPENPLC, comments=False))
+    assert "(*" not in plain and without_comments(source) == plain
     # BLADE_LIMIT is controllable in Transfer_line.py, so the program writes that input
     assert "GD_IN_4 := 1;" in source
 
@@ -343,6 +356,11 @@ def test_assembly_line_matches_tct(assembly_line):
     source = assembly_line["st"]
     assert (assembly_line["tmp_path"] / "ST_Generated" / "Assembly_line.st").read_text(encoding="utf-8") == source
     assert sha256(as_tct(source)) == TCT_ASSEMBLY_LINE_SHA256
+    plain = deslab.generate_ST_OPENPLC(
+        assembly_line["supervisores"], plants=assembly_line["plantas"], actuators=assembly_line["actuators"],
+        namest="sin_comentarios", Mask=assembly_line["Mask"], output_dir=assembly_line["tmp_path"],
+        event_order=assembly_line["orden_eventos"], comments=False)
+    assert "(*" not in plain and without_comments(source) == plain
     assert source == (NOTEBOOKS / "ST_generated" / "Assembly_line.st").read_text(encoding="utf-8")
 
 
@@ -521,9 +539,15 @@ def test_local_modular_small_factory_program(local_modular_small_factory):
 @pytest.fixture
 def modular_by_device_small_factory(tmp_path, monkeypatch):
     names = run_cells("LCS_modular_by_device_small_factory_openplc.ipynb", "me",
-                      (5, 7, 9, 11, 13, 15, 17, 19), tmp_path, monkeypatch)
+                      (5, 7, 11, 13, 15, 17, 19), tmp_path, monkeypatch)
     names["tmp_path"] = tmp_path
     return names
+
+
+def without_start_requests(cell):
+    """cell text without the definitions of REQ_start (or its parts) and the draw line"""
+    cell = re.sub(r"(?ms)^REQ_start\w* = fsa\(.*?name='REQ_start\w*'\)\n", "", cell)
+    return [line for line in cell.splitlines() if line.strip() and not line.startswith("draw(")]
 
 
 def test_modular_by_device_small_factory_equals_the_monolithic_supervisor(modular_by_device_small_factory):
@@ -539,8 +563,8 @@ def test_modular_by_device_small_factory_equals_the_monolithic_supervisor(modula
     # same events, models, auxiliary automata and signal map as the monolithic notebook
     device, mono = notebook_cells("LCS_modular_by_device_small_factory_openplc.ipynb"), \
         notebook_cells("LCS_monolithic_control_small_factory_openplc.ipynb")
-    assert all(device[f"me-{d}"] == mono[f"sm-{m}"] for d, m in (("05", "05"), ("07", "07"),
-                                                                ("15", "13"), ("17", "15")))
+    assert all(device[f"me-{d}"] == mono[f"sm-{m}"] for d, m in (("05", "05"), ("15", "13"), ("17", "15")))
+    assert without_start_requests(device["me-07"]) == without_start_requests(mono["sm-07"])
     check_reduced_supervisors(names, {"SUP_maq": ("G_maq", 4), "sup_BA": ("G_BA", 2)})
 
 

@@ -9,6 +9,7 @@ remain in their existing DESlab modules; this module adds no dependencies.
 #    Edgar Sepulveda <ehsepulvedao@unal.edu.co>
 #    MIT license (see LICENSE).
 
+import re
 from collections import deque
 from pathlib import Path
 
@@ -19,8 +20,36 @@ from .supervisory import allevents, supcontrollable, _reduced_supervisor
 __all__ = ["generate_ST_OPENPLC"]
 
 
+def _comment_text(text):
+    """Text that can go inside an ST comment: no LaTeX marks, line breaks or comment delimiters."""
+    text = re.sub(r"\\[A-Za-z]+", " ", str(text))
+    text = " ".join(re.sub(r"[${}^]", "", text).split())
+    return text.replace("(*", "( *").replace("*)", "* )")
+
+
+# names that DESlab gives by default (fsa, supcontrollable): the comments use a number instead
+_DEFAULT_NAMES = ("", "untitled", r"$K^{\uparrow C}$")
+
+
+def _model_name(model):
+    """Name of a model for the comments, or '' when it has none."""
+    name = getattr(model, "name", "") or ""
+    return "" if name in _DEFAULT_NAMES else _comment_text(name)
+
+
+def _event_text(event):
+    """An event in the comments; events named by a number read 'event 3'."""
+    event = _comment_text(event)
+    return f"event {event}" if event.isdigit() else event
+
+
 class _STEmitter:
-    """Private graph coordination and ST emission for one generation call."""
+    """Private graph coordination and ST emission for one generation call.
+
+    Comments, when enabled, are written either on a line of their own or at the end of a code
+    line (before its line break), so that deleting them gives exactly the program without
+    comments.
+    """
 
     def _coordinator(self, supervisors, plants, name):
         first, second = supervisors
@@ -81,8 +110,12 @@ class _STEmitter:
                     seen.add(target)
                     pending.append(target)
 
-    def __init__(self, output_dir, event_order, state_order=None, transition_order=None):
+    def __init__(self, output_dir, event_order, state_order=None, transition_order=None,
+                 comments=False):
         self.output_dir = Path(output_dir)
+        self.comments = comments
+        # name of each model (supervisor_k, isolated_k, CO_i_j) in the comments
+        self.labels = {}
         self.models = {}
         self.dict_events = {event: index for index, event in enumerate(event_order or ())}
         self.controllable = {}
@@ -154,6 +187,59 @@ class _STEmitter:
         for state, index in self.numbering[name].items():
             yield index, events[state]
 
+    # ----- comments -------------------------------------------------------------------------
+
+    def _note(self, text):
+        """Comment at the end of a code line, written just before its line break."""
+        return f" (* {_comment_text(text)} *)" if self.comments else ""
+
+    def _line(self, text, indent="\t"):
+        """Comment on a line of its own."""
+        return f"{indent}(* {_comment_text(text)} *)\n" if self.comments else ""
+
+    def _with_line(self, text, comment, indent="\t"):
+        """text followed by a comment line. The comment goes before the indentation that text
+        may have written for its next code line, so deleting the comment line restores text."""
+        if not self.comments:
+            return text
+        head = text.rstrip(" \t")
+        assert not head or head.endswith("\n"), "a comment line cannot split a code line"
+        return head + self._line(comment, indent) + text[len(head):]
+
+    @staticmethod
+    def _signal_map(actuators):
+        """For each PLC variable, the events that set or read it: {variable: {'1': [...],
+        '0': [...], 'edges': [(edge_block, events)]}}, and the address of each located one."""
+        signals, addresses = {}, {}
+        for event, mapping in actuators.items():
+            fields = mapping.split(":")
+            if fields[1] in ("ON", "OFF"):
+                entry = signals.setdefault(fields[0], {"1": [], "0": [], "edges": []})
+                entry["1" if fields[1] == "ON" else "0"].append(_event_text(event))
+                if len(fields) == 3:
+                    addresses.setdefault(fields[0], fields[2])
+            else:
+                entry = signals.setdefault(fields[1], {"1": [], "0": [], "edges": []})
+                for edge, events in entry["edges"]:
+                    if edge == fields[0]:
+                        events.append(_event_text(event))
+                        break
+                else:
+                    entry["edges"].append((fields[0], [_event_text(event)]))
+                addresses.setdefault(fields[1], fields[2])
+        return signals, addresses
+
+    @staticmethod
+    def _describe(entry):
+        """'1 for e1; 0 for ...; falling edge (FE_X): e2' for a PLC variable."""
+        parts = [f"{value} for {', '.join(entry[value])}" for value in ("1", "0") if entry[value]]
+        for edge, events in entry["edges"]:
+            kind = "rising edge" if edge.startswith("RE") else "falling edge"
+            parts.append(f"{kind} ({edge}): {', '.join(events)}")
+        return "; ".join(parts)
+
+    # ----- ST code ----------------------------------------------------------------------------
+
     @staticmethod
     def _condition(mapping):
         variable, kind, *_ = mapping.split(":")
@@ -162,9 +248,10 @@ class _STEmitter:
         return variable if kind == "ON" else variable + ".Q"
 
     def _emit_event_pairs(self, aislated, actuators, interseccion):
-        # Generate direct handshake logic for auxiliary event pairs.
-        out = ""
+        # Direct handshake logic for each (request, command) event pair: [(pair, ST block)].
+        blocks = []
         for a in aislated:
+            out = ""
             add = ""
             if len(actuators[a[0]].split(':')) > 1:
                 add = "NOT " if actuators[a[0]].split(':')[1] == 'OFF' else ''
@@ -177,7 +264,8 @@ class _STEmitter:
             if actuators[a[0]].split(':')[0] in interseccion.keys():
                 out += "\t" + actuators[a[0]].split(':')[0] + "_G[0] := 0;\n"
             out += "END_IF;\n"
-        return out
+            blocks.append((a, out))
+        return blocks
 
 
     def _emit(self, supervisors, plants, actuators, namest, Mask, auxiliary, event_pairs, initial):
@@ -250,24 +338,34 @@ class _STEmitter:
                         index for index in (i, j) if event in self._events(supervisors[index])[0]
                     ]
 
+        # state[k] of the program: the supervisors, then the auxiliary automata, then the
+        # coordinators; labels[k] names it in the comments
+        main_models = supervisors
+        models = [*main_models, *auxiliary]
+        coordinator_names = [name for name, _, _ in coordinators]
+        for name, i, j in coordinators:
+            first, second = (self.labels[supervisors[k]].removeprefix("supervisor ") for k in (i, j))
+            self.labels[name] = f"coordinator of supervisors {first} and {second}"
+        labels = [self.labels.get(name, name) for name in (*models, *coordinator_names)]
+
+        # each model's ST pieces: guards of its controllable and uncontrollable transitions and
+        # the CASE block that writes the orders enabled in each state
         controlled = []
         uncontrolled = []
         cases = []
         selections = []
-        main_models = supervisors
-        for index, model in enumerate([*main_models, *auxiliary]):
+        for index, model in enumerate(models):
             guards_on, guards_off = self._guards(model, actuators, index)
             shared = intersections if index < len(main_models) else {}
             case, selection_count = self._state_cases(model, actuators, index, shared)
-            controlled.append(guards_on + "\n")
-            uncontrolled.append(guards_off + "\n")
-            cases.append("\n" + case + "\n")
+            controlled.append(guards_on)
+            uncontrolled.append(guards_off)
+            cases.append(case)
             selections.append(selection_count)
 
         coordinator_cases = []
         coordinator_on = []
         coordinator_off = []
-        coordinator_names = [name for name, _, _ in coordinators]
         for name in coordinator_names:
             index = len(selections)
             coordinator_cases.append(self._coordinator_case(name, state_it=index, actuators=actuators))
@@ -281,25 +379,104 @@ class _STEmitter:
             for name in coordinator_names for event in self._events(name)[0]
         }
         declaration = self._declarations(
-            actuators, selections, intersections, coordinator_names, Mask, initial,
+            actuators, selections, intersections, coordinator_names, Mask, initial, labels,
         )
         mask = "".join(
             f"\t{output} := {signal};\n " for signal, mirrors in Mask.items() for output, _ in mirrors
         )
-        body = "".join([
-            *uncontrolled, *coordinator_off, *cases, *coordinator_cases,
-            self._emit_intersections(intersections, coordinated_signals), *coordinator_on, *controlled,
-            self._emit_event_pairs(event_pairs, actuators, intersections), mask,
-        ])
+        shared_orders = self._emit_intersections(intersections, coordinated_signals)
+        pairs = self._emit_event_pairs(event_pairs, actuators, intersections)
+        signals, _ = self._signal_map(actuators)
+
+        # the body of the program, one scan; comments only add lines and line ends
+        def section(text):
+            nonlocal body
+            body = self._with_line(body, "===== " + text + " =====")
+
+        def header(index, text):
+            nonlocal body
+            body = self._with_line(body, f"{labels[index]} (state[{index}]): {text}")
+
+        body = ""
+        section("Uncontrollable events: each automaton moves with at most one per scan")
+        for index, guards_off in enumerate(uncontrolled):
+            if guards_off:
+                header(index, "uncontrollable transitions")
+            body += guards_off + "\n"
+        for k, guards_off in enumerate(coordinator_off):
+            if guards_off:
+                header(len(models) + k, "uncontrollable transitions")
+            body += guards_off
+        section("Orders: each automaton writes the orders enabled in its state; if there are "
+                "several, it picks one at random")
+        for index, case in enumerate(cases):
+            body += "\n"
+            header(index, "orders of each state")
+            body += case + "\n"
+        for k, case in enumerate(coordinator_cases):
+            header(len(models) + k, "requests it allows (1) or not (0) in each state")
+            body += case
+        if shared_orders:
+            section("Shared orders: they change only if every supervisor that shares them "
+                    "proposes them")
+        for signal, text in shared_orders:
+            who = ", ".join(f"[{k}] {labels[i]}" for k, i in enumerate(intersections[signal]))
+            note = "; supervised by a coordinator" if signal in coordinated_signals else ""
+            body = self._with_line(body, f"{signal} ({self._describe(signals[signal])}): "
+                                         f"proposals {signal}_G of {who}{note}")
+            body += text
+        for k, guards_on in enumerate(coordinator_on):
+            if guards_on:
+                header(len(models) + k, "transitions with the allowed requests")
+            body += guards_on
+        section("Orders given: each automaton moves with the controllable event of the order")
+        for index, guards_on in enumerate(controlled):
+            if guards_on:
+                header(index, "controllable transitions")
+            body += guards_on + "\n"
+        if pairs:
+            section("Pairs: they turn an internal request into an order")
+        for (request, command), text in pairs:
+            body = self._with_line(body, f"pair ({_event_text(request)}, {_event_text(command)}): the request switches "
+                                         f"the order on and is cleared once the order is on")
+            body += text
+        if mask:
+            section("Copies of signals to other outputs (Mask)")
+            body += mask
         if initial != "null":
             startup_signal = actuators[initial].split(":")[0]
             indented_body = "\n".join("\t" + line for line in body.splitlines())
             body = (
-                f"\tIF NOT initial THEN\n\t\tIF {startup_signal} THEN\n"
-                "\t\t\tinitial := 1;\n\t\tEND_IF;\n\tELSIF initial THEN\n"
-                + indented_body + "\n\tEND_IF;"
+                self._line(f"Waits for the start signal ({initial}); from then on it runs the "
+                           f"controller every scan")
+                + f"\tIF NOT initial THEN\n\t\tIF {startup_signal} THEN\n"
+                "\t\t\tinitial := 1;\n\t\tEND_IF;\n\tELSIF initial THEN" + self._note("controller")
+                + "\n" + indented_body + "\n\tEND_IF;"
             )
-        out = RANDOM + HEADER + declaration + body + END
+
+        # what the program does in each scan and which automaton each state[k] is
+        steps = ["computes the input edges and a random number"]
+        if initial != "null":
+            steps.append(f"waits for the start signal ({initial}); from then on it runs the next "
+                         f"steps every scan")
+        steps += ["each automaton moves with at most one uncontrollable event",
+                  "each automaton writes the orders enabled in its state; if there are several, "
+                  "it picks one at random"]
+        if shared_orders:
+            steps.append("an order shared by several supervisors changes only if all of them propose it")
+        steps.append("each automaton moves with the order that was given (controllable event)")
+        if pairs:
+            steps.append("pairs turn internal requests into orders")
+        if mask:
+            steps.append("copies signals to other outputs (Mask)")
+        overview = (
+            self._line("Controller generated by DESlab (generate_ST_OPENPLC). Every scan it:", "")
+            + "".join(self._line(f"  {k}. {step}", "") for k, step in enumerate(steps, 1))
+            + self._line("The states of each automaton are numbered from 0, its initial state:", "")
+            + "".join(self._line(f"  state[{k}]: {label}", "") for k, label in enumerate(labels))
+        )
+        out = (self._line("OpenPLC random number (C code), used to pick one of several orders", "")
+               + RANDOM + overview + HEADER + declaration + body + END)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         with (self.output_dir / f"{namest}.st").open("w", encoding="utf-8", newline="\n") as stream:
             stream.write(out)
@@ -307,9 +484,11 @@ class _STEmitter:
 
     def _emit_intersections(self, intersection, coordinated_signals):
         addG, addC, name_intersection = "_G[", "_C[", "aux"
-        # Generate the code for the intersection between supervisors and coordinators
-        out = ""
+        # Code for the orders that several supervisors share, and for the coordinators that
+        # supervise some of them: [(signal, ST block)]
+        blocks = []
         for inter in intersection.keys():
+            out = ""
             coordinated = inter in coordinated_signals
             aux = ""
             coor = ""
@@ -353,72 +532,94 @@ class _STEmitter:
 
             out += "\t" + bandera + " := " + guesses[0] + ";\n"
             out += coor
-        return out
+            blocks.append((inter, out))
+        return blocks
 
 
-    def _declarations(self, actuators, n_state, intersetion, CO, mascara, initial):
-        # Variable blocks for OPENPLC ST version
+    def _declarations(self, actuators, n_state, intersetion, CO, mascara, initial, labels):
+        # Variable blocks for OPENPLC ST version: internal variables, then the PLC inputs and
+        # outputs, then the edge detectors and the random number of the scan
+        signals, _ = self._signal_map(actuators)
+        note = self._note
 
-        declaration = "\tVAR\n"
+        def edge_events(edge, source):
+            return ", ".join(next(events for name, events in signals[source]["edges"] if name == edge))
+
+        declaration = "\tVAR\n" + self._line("PLC inputs and outputs", "\t\t")
         clocks = ""
-        start = "\tVAR\n"
-        start += '\t\trandom : random_number;\n'
-        start += '\t\trandom_num : DINT;\n'
+        start = "\tVAR\n" + self._line("Internal variables", "\t\t")
+        start += '\t\trandom : random_number;' + note("random number generator") + '\n'
+        start += '\t\trandom_num : DINT;' + note("random number of this scan") + '\n'
         if initial != 'null':
-            start += '\t\tinitial : BOOL;\n'
-        start += f"\t\tstate : ARRAY [0..{len(n_state)}] OF DINT;\n"
+            start += '\t\tinitial : BOOL;' + note(f"1 once the start signal ({initial}) has arrived") + '\n'
+        start += (f"\t\tstate : ARRAY [0..{len(n_state)}] OF DINT;"
+                  + note("state of each automaton; the list is at the start of the program") + "\n")
         if len(CO) != 0:
             declared = []
-            start += "\t\taux : BOOL := 0;\n"
+            start += "\t\taux : BOOL := 0;" + note("agreed proposal of a request supervised by a coordinator") + "\n"
             for coor in CO:
                 for i in self._events(coor)[0]:
                     aux = actuators[i].split(':')[0]
                     if aux not in declared:
-                        start += "\t\t" + aux + "_C : ARRAY [0..1] OF BOOL;\n"
+                        start += ("\t\t" + aux + "_C : ARRAY [0..1] OF BOOL;"
+                                  + note(f"{self.labels[coor]}: [1] allows setting {aux} to 1, "
+                                         f"[0] allows setting it to 0") + "\n")
                         declared.append(aux)
         for index, count in enumerate(n_state):
             if count:
-                start += f"\t\tslt{index} : ARRAY [0..{count}] OF DINT;\n"
+                start += (f"\t\tslt{index} : ARRAY [0..{count}] OF DINT;"
+                          + note(f"random choices of {labels[index]}, one per state with several orders") + "\n")
 
         if len(intersetion.keys()) > 0:
             for inter in intersetion.keys():
-                start += "\t\t" + inter + "_G : ARRAY [0.." + str(len(intersetion[inter])) + "] OF BOOL;\n"
+                who = ", ".join(f"[{k}] {labels[index]}" for k, index in enumerate(intersetion[inter]))
+                start += ("\t\t" + inter + "_G : ARRAY [0.." + str(len(intersetion[inter])) + "] OF BOOL;"
+                          + note(f"proposals of {inter} from {who}") + "\n")
 
         declared = []
         for msk in mascara.keys():
             for e in mascara[msk]:
-                declaration += "\t\t" + e[0] + " AT " + e[1] + " : BOOL;\n "
+                declaration += "\t\t" + e[0] + " AT " + e[1] + " : BOOL;" + note(f"output; copy of {msk} (Mask)") + "\n "
         for act in actuators.values():
             aux = act.split(':')
             if 'INTERN' in aux[0]:
                 if aux[0] not in declared:
-                    start += "\t\t" + aux[0] + " : BOOL;\n"
+                    start += "\t\t" + aux[0] + " : BOOL;" + note(f"internal variable; {self._describe(signals[aux[0]])}") + "\n"
                     declared.append(aux[0])
                     continue
             if aux[1] == 'ON' or aux[1] == 'OFF':
                 if aux[0] in declared:
                     continue
-                declaration += "\t\t" + aux[0] + " AT " + aux[2] + " : BOOL;\n"
+                kind = "input" if aux[2].startswith("%I") else "output"
+                declaration += ("\t\t" + aux[0] + " AT " + aux[2] + " : BOOL;"
+                                + note(f"{kind}; {self._describe(signals[aux[0]])}") + "\n")
                 declared.append(aux[0])
             else:
                 if aux[1] not in declared:
                     declared.append(aux[1])
-                    declaration += "\t\t" + aux[1] + " AT " + aux[2] + " : BOOL;\n"
+                    declaration += ("\t\t" + aux[1] + " AT " + aux[2] + " : BOOL;"
+                                    + note(f"input; {self._describe(signals[aux[1]])}") + "\n")
                 start += "\t\t" + aux[0] + " : "
+                kind = "falling edge" if aux[0].startswith("FE") else "rising edge"
 
                 if aux[0].startswith("FE"):
-                    start += "F_TRIG;\n"
+                    start += "F_TRIG;" + note(f"{kind} of {aux[1]}: {edge_events(aux[0], aux[1])}") + "\n"
                 if aux[0].startswith("RE"):
-                    start += "R_TRIG;\n"
+                    start += "R_TRIG;" + note(f"{kind} of {aux[1]}: {edge_events(aux[0], aux[1])}") + "\n"
 
-                clocks += "\t" + aux[0] + '(CLK:= ' + aux[1] + ');\n'
-        ran = "\trandom(\n\t\tIN := True,\n\t\tOUT => random_num);\n"
+                clocks += "\t" + aux[0] + '(CLK:= ' + aux[1] + ');' + note(edge_events(aux[0], aux[1])) + '\n'
+        ran = self._line("Random number of this scan") + "\trandom(\n\t\tIN := True,\n\t\tOUT => random_num);\n"
         start += "\tEND_VAR\n"
         declaration += "\tEND_VAR\n"
+        if clocks:
+            clocks = self._line("Input edges") + clocks
         return start + declaration + clocks + ran
 
 
-    def _guards(self, name, actuators, n_state):  # Generate the ST code for conditional sentences
+    def _guards(self, name, actuators, n_state):
+        # IF/ELSIF chains that move state[n_state]: one for the controllable transitions (taken
+        # when the order was given) and one for the uncontrollable ones (taken when the input
+        # condition holds); self-loops do not move the state and are left out
         if_uncontrollable = "\t"
         if_controllable = "\t"
         for origin, event, destination, controllable in self._transitions(name):
@@ -428,12 +629,12 @@ class _STEmitter:
             if controllable:
                 if_controllable += "IF state[" + str(n_state) + "] = " + str(origin) \
                                    + " & " + name_event \
-                                   + " THEN\n  " + "\t\t" + "state[" + str(n_state) + "] := " \
+                                   + " THEN" + self._note(_event_text(event)) + "\n  " + "\t\t" + "state[" + str(n_state) + "] := " \
                                    + str(destination) + ";\n  " + "\tELS"
             else:
                 if_uncontrollable += "IF state[" + str(n_state) + "] = " + str(origin) + " & "
                 if_uncontrollable += name_event
-                if_uncontrollable += " THEN\n  " + "\t\t" + "state[" + str(n_state) + "] := "
+                if_uncontrollable += " THEN" + self._note(_event_text(event)) + "\n  " + "\t\t" + "state[" + str(n_state) + "] := "
                 if_uncontrollable += str(destination) + ";\n  " + "\tELS"
         if if_controllable == "\t": if_controllable = ""
         if if_uncontrollable == "\t": if_uncontrollable = ""
@@ -445,6 +646,9 @@ class _STEmitter:
 
 
     def _state_cases(self, name, actuators, state_index, intersections):
+        # CASE block that writes, in each state of state[state_index], the outputs of the
+        # controllable events it enables; with several, a random selector sltk picks one per
+        # scan. Orders shared with other supervisors are written as proposals X_G[k].
         guesses = {
             signal: f"_G[{participants.index(state_index)}]"
             for signal, participants in intersections.items() if state_index in participants
@@ -458,20 +662,20 @@ class _STEmitter:
         selections = 0
         case = f"\tCASE state[{state_index}] OF\n  "
         for state, active_events in self._states(name):
-            assignments = [outputs[event] for event in active_events if event in outputs]
+            assignments = [(event, *outputs[event]) for event in active_events if event in outputs]
             if not assignments:
                 continue
             case += f"\t\t{state}:\n  "
             if len(assignments) == 1:
-                assignment, value = assignments[0]
-                case += f"\t\t\t{assignment}\n"
+                event, assignment, value = assignments[0]
+                case += f"\t\t\t{assignment}{self._note(_event_text(event))}\n"
                 if value == 0:
                     case += "  "
                 continue
             selector = f"slt{state_index}[{selections}]"
-            case += f"\t\t\tCASE {selector} OF\n  "
-            for option, (assignment, _) in enumerate(assignments):
-                case += f"\t\t\t\t{option}:\n  \t\t\t\t\t{assignment}\n  "
+            case += f"\t\t\tCASE {selector} OF{self._note(f'one of {len(assignments)} orders, at random')}\n  "
+            for option, (event, assignment, _) in enumerate(assignments):
+                case += f"\t\t\t\t{option}:\n  \t\t\t\t\t{assignment}{self._note(_event_text(event))}\n  "
             case += (
                 "\t\t\tEND_CASE;\n  "
                 f"\t\t\t{selector} := (random_num + {selector}) MOD {len(assignments)};\n  "
@@ -492,7 +696,8 @@ class _STEmitter:
                 enabled = set(active_events)
                 case += f"\t\t{state}:\n  "
                 for event, flag in flags.items():
-                    case += f"\t\t\t{flag} := {int(event in enabled)};\n"
+                    allowed = "allows" if event in enabled else "does not allow"
+                    case += f"\t\t\t{flag} := {int(event in enabled)};{self._note(f'{allowed} {_event_text(event)}')}\n"
         return case + "\tEND_CASE;\n  "
 
 
@@ -500,7 +705,7 @@ class _STEmitter:
 def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controller",
                         Mask=None, Isolated=None, initial="null", *,
                         output_dir="ST_Generated", event_pairs=(), event_order=None,
-                        state_order=None, transition_order=None):
+                        state_order=None, transition_order=None, comments=True):
     """Generate, save and return an OpenPLC Structured Text program.
 
     Parameters
@@ -561,6 +766,15 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
         ``(state, event, next_state)`` transitions in the order their guards
         and output branches are written. By default each state's transitions
         follow the state numbering and ``event_order``.
+    comments : bool, optional, keyword-only
+        Write comments, in English, that explain the program (default True): at
+        its start, what is done in each scan and which supervisor, auxiliary
+        automaton or coordinator each ``state[k]`` is; at each variable, what it
+        holds and which events read or write it; and before the code of each
+        automaton, a header with its name, with the event of each transition and
+        of each order at the end of its line. Each comment is on a line of its
+        own or at the end of a code line, so deleting them gives the program
+        written with ``comments=False``, the one of TCT's generator.
 
     Returns
     -------
@@ -597,13 +811,14 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
         return {id(model): value for model, value in option.items()}
 
     emitter = _STEmitter(output_dir, event_order, by_identity(state_order, "state_order"),
-                         by_identity(transition_order, "transition_order"))
+                         by_identity(transition_order, "transition_order"), comments)
     supervisor_names = []
     plant_names = []
     for index, supervisor in enumerate(supervisors):
         emitter._require_deterministic(f"Supervisor {index}", supervisor)
         name = f"supervisor_{index}"
         emitter.models[name] = supervisor
+        emitter.labels[name] = f"supervisor {_model_name(supervisor) or index}"
         if plants:
             plant = plants[index]
             emitter._require_deterministic(f"Plant {index}", plant)
@@ -619,6 +834,7 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
     for index, model in enumerate(auxiliary):
         name = f"isolated_{index}"
         emitter.models[name] = model
+        emitter.labels[name] = f"auxiliary automaton {_model_name(model) or index}"
         emitter._prepare_emission(name)
         isolated_names.append(name)
     return emitter._emit(supervisor_names, plant_names, actuators or {}, namest,

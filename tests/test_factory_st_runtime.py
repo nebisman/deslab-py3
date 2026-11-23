@@ -17,6 +17,7 @@ from deslab import fsa, generate_ST_OPENPLC, iscontrollable, product, supcontrol
 
 class FactoryST:
     def __init__(self, source, random_value=0):
+        source = re.sub(r"\(\*.*?\*\)", "", source, flags=re.S)   # comments
         program = re.search(r"\bPROGRAM\s+\w+\s*\n(.*?)\bEND_PROGRAM\b", source, re.S)[1]
         self.values = {}
         for declarations in re.findall(r"\bVAR\s+(.*?)\bEND_VAR\b", program, re.S):

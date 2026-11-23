@@ -111,7 +111,11 @@ st = generate_ST_OPENPLC([S], plants=[G], actuators=actuators,
 Devuelve el texto ST y escribe `ST_Generated/controlador.st`. Con varios supervisores,
 se requiere una planta por supervisor en el mismo orden. Los autómatas auxiliares, que tienen
 su propio estado pero no se sintetizan, se pasan en `Isolated`, y las parejas que convierten una
-petición interna en una orden, cuando hacen falta, en `event_pairs`. La función y sus ayudantes
+petición interna en una orden, cuando hacen falta, en `event_pairs`. El programa lleva comentarios
+en inglés: al comienzo, lo que hace cada scan y qué supervisor, autómata auxiliar o coordinador
+es cada `state[k]`; en cada variable, qué guarda y a qué eventos corresponde; antes del código de
+cada autómata, su nombre; y al final de cada transición y de cada orden, su evento. Con
+`comments=False` sale sin comentarios. La función y sus ayudantes
 privados están en [`deslab/toolboxes/codegen.py`](deslab/toolboxes/codegen.py), sin dependencias adicionales.
 Su docstring documenta la API; el [notebook completo](notebooks/pequena_factoria_sin_fallas.ipynb)
 presenta un caso ejecutable con señales y auxiliares de rearme.
@@ -150,13 +154,13 @@ la línea de transferencia y la línea de ensamble:
 
 Los notebooks de la línea de transferencia y la línea de ensamble definen sus modelos con `fsa` y
 solo con los autolazos necesarios, y generan un programa idéntico, byte por byte, al que genera TCT
-con el script correspondiente de TCT_Proyect (copiados en la misma carpeta), salvo el nombre del
-programa: DESlab lo llama `supcon` y TCT `tesis0`. Los programas para las escenas, incluidos los del supervisor monolítico y de sus
+con el script correspondiente de TCT_Proyect (copiados en la misma carpeta), salvo los comentarios
+y el nombre del programa: DESlab lo llama `supcon` y TCT `tesis0`. Los programas para las escenas, incluidos los del supervisor monolítico y de sus
 dos versiones modulares, están en
 [`notebooks/factory_io/ST_generated`](notebooks/factory_io/ST_generated). La prueba
 [`tests/test_openplc_notebooks.py`](tests/test_openplc_notebooks.py) ejecuta las celdas de los
 notebooks, simula scan por scan el programa de la pequeña fábrica con un supervisor, compara los
-de TCT, con el nombre `tesis0`, con la huella SHA-256 de los programas de TCT y comprueba que los archivos de
+de TCT, sin comentarios y con el nombre `tesis0`, con la huella SHA-256 de los programas de TCT y comprueba que los archivos de
 `ST_generated` son los que generan los notebooks.
 
 Las salidas conservan su valor hasta que otra acción las cambie. El ejemplo explicita

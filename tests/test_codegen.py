@@ -1,5 +1,7 @@
 """Public OpenPLC code generation and scan protocol checks."""
 
+import re
+
 import pytest
 
 from deslab import fsa, generate_ST_OPENPLC
@@ -78,6 +80,25 @@ def test_isolated_lists_only_automata(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_comments_explain_the_program_and_can_be_removed(tmp_path):
+    reset = fsa([0, 1], ["done", "off", "clear"],
+                [(0, "done", 1), (1, "off", 1), (1, "clear", 0)],
+                [0], [0, 1], Sigcon=["off"], name="Rearme")
+    mapping = dict(signals(), off="Motor:OFF", clear="Done:OFF:%IX0.0", enable="Enable:ON:%IX0.1")
+    arguments = dict(actuators=mapping, Isolated=[reset], initial="enable", output_dir=tmp_path)
+    source = generate_ST_OPENPLC([machine().setpar(name="M")], **arguments)
+    plain = generate_ST_OPENPLC([machine().setpar(name="M")], namest="plain", comments=False, **arguments)
+    assert "(*" not in plain
+    # which automaton each state variable is, what each variable holds, the event of each line
+    assert "(* state[0]: supervisor M *)" in source
+    assert "(* state[1]: auxiliary automaton Rearme *)" in source
+    assert "Motor AT %QX0.0 : BOOL; (* output; 1 for start; 0 for off *)" in source
+    assert "& RE_Done.Q THEN (* done *)" in source and "Motor := 1; (* start *)" in source
+    assert "(* supervisor M (state[0]): orders of each state *)" in source
+    # each comment is a whole line or a line end: deleting them gives the program without comments
+    assert re.sub(r"(?m)^[ \t]*\(\*.*\*\)\n| \(\*.*?\*\)$", "", source) == plain
+
+
 def test_startup_preserves_original_held_level_protocol(tmp_path):
     supervisor = fsa([0, 1, 2], ["enable", "start", "done"],
                      [(0, "enable", 1), (1, "start", 2), (2, "done", 1)],
@@ -140,10 +161,11 @@ def test_state_order_fixes_the_numbering(tmp_path):
     S = branching()
     # breadth-first with this event order: idle 0, down 1, busy 2
     default = generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path,
-                                  event_order=["fail", "go"])
+                                  event_order=["fail", "go"], comments=False)
     assert "state[0] = 0 & RE_Fail.Q THEN\n  \t\tstate[0] := 1;" in default
     listed = generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path,
-                                 event_order=["fail", "go"], state_order={S: ["idle", "busy", "down"]})
+                                 event_order=["fail", "go"], state_order={S: ["idle", "busy", "down"]},
+                                 comments=False)
     assert "state[0] = 0 & RE_Fail.Q THEN\n  \t\tstate[0] := 2;" in listed
     # an automaton as source: its breadth-first order, restricted to the supervisor's states
     source = fsa(["idle", "extra", "busy", "down"], ["go", "skip", "done", "fail", "fixed"],
@@ -151,7 +173,7 @@ def test_state_order_fixes_the_numbering(tmp_path):
                   ("extra", "fail", "down"), ("down", "fixed", "idle")],
                  ["idle"], ["idle"], Sigcon=["go", "fixed"])
     from_source = generate_ST_OPENPLC([S], actuators=branching_signals(), output_dir=tmp_path,
-                                      event_order=["skip", "go"], state_order={S: source})
+                                      event_order=["skip", "go"], state_order={S: source}, comments=False)
     assert from_source == listed
 
 
