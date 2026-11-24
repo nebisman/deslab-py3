@@ -61,6 +61,29 @@ def test_allevents():
     assert allevents(fsa()).Sigma == frozenset()
 
 
+def test_unconselfloops_buffer():
+    """the full buffer accepts t1 and r as self loops; e2, controllable, is not added"""
+    E1 = fsa(['B0', 'B1'], ['t1', 'r', 'e2'], [('B0', 't1', 'B1'), ('B0', 'r', 'B1'), ('B1', 'e2', 'B0')],
+             ['B0'], ['B0'], [('t1', 't_1')], Sigcon=['e2'], name='$E_1$')
+    U = unconselfloops(E1)
+    transitions = lambda A: {(x, e, A.delta(x, e)) for x in A.X for e in A.Gamma(x)}
+    assert transitions(U) == transitions(E1) | {('B1', 't1', 'B1'), ('B1', 'r', 'B1')}
+    assert (U.name, U.Sigcon, U.Xm, U.X0, U.symDict) == ('$E_1$', {'e2'}, {'B0'}, {'B0'}, {'t1': 't_1'})
+    assert len(transitions(E1)) == 3 and unconselfloops(fsa()).empty
+
+
+@pytest.mark.parametrize('rng', rngs(30))
+def test_unconselfloops_enables_every_uncontrollable_event(rng):
+    A = random_fsa(rng, nstates=4, events=('a', 'b', 'u', 'v'), pm=0.5, Sigcon=['a', 'b'])
+    U = unconselfloops(A)
+    assert U.is_dfa() == A.is_dfa() and U.X == A.X and U.Xm == A.Xm
+    for x in A.X:
+        assert U.Gamma(x) == A.Gamma(x) | {'u', 'v'}
+        assert all(U.delta(x, e) == x for e in {'u', 'v'} - A.Gamma(x))
+    # the specification then never blocks an uncontrollable event: it is controllable for itself
+    assert iscontrollable(U, U)
+
+
 def test_supcontrollable_simple():
     G, H = simple_plant()
     assert not iscontrollable(H, G)
@@ -86,6 +109,20 @@ def test_supcontrollable_algorithms_agree(rng):
     if not Kg.empty:
         assert iscontrollable(Kg, G)
         assert Kg <= H
+
+
+@pytest.mark.parametrize('rng', rngs(60, seed=100))
+def test_supcontrollable_with_unmarked_plant_states(rng):
+    """the language algorithm must use L(G), not Lm(G): an uncontrollable event that leads G
+    to an unmarked state must not be disabled either"""
+    G = random_fsa(rng, nstates=4, events=('a', 'b', 'u'), pm=0.4, Sigcon=['a', 'b'])
+    E = random_fsa(rng, nstates=3, events=('a', 'b', 'u'), pm=1.0, Sigcon=['a', 'b'])
+    H = G.setpar(Xm=G.X) // E
+    if H.empty or not ispfclosed(H):
+        return
+    K = supcontrollable(H, G)
+    assert are_langequiv(K, supcontrollablegeneral(H, G))
+    assert K.empty or iscontrollable(K, G)
 
 
 def test_supcontrollable_keeps_the_uncontrollable_events():
@@ -159,6 +196,102 @@ def test_supreduce_is_control_equivalent(rng):
     R = supreduce(S, G)
     assert len(R) <= len(S) and R.Sigcon == S.Sigcon
     assert control_equivalent(R, S, G)
+
+
+def test_supcontrollable_keeps_states_when_nothing_is_removed():
+    """when H is already controllable the language algorithm returns H, whose states are not
+    pairs (h, x): they keep their names instead of being renamed by their first component"""
+    syms('a1 b1 a2 b2')
+    M1 = fsa([0, 1], [a1, b1], [(0, a1, 1), (1, b1, 0)], [0], [0, 1], Sigcon=[a1])
+    M2 = fsa([0, 1], [a2, b2], [(0, a2, 1), (1, b2, 0)], [0], [0, 1], Sigcon=[a2])
+    G = M1 // M2
+    H = G // fsa([0], [a1], [(0, a1, 0)], [0], [0], Sigcon=[a1])
+    S = supcontrollable(H, G)
+    assert S.X == H.X and are_isomorphic(S, H)
+
+
+def buffer_factory():
+    syms('a1 b1 a2 b2')
+    M1 = fsa([0, 1], [a1, b1], [(0, a1, 1), (1, b1, 0)], [0], [0], Sigcon=[a1], name='M1')
+    M2 = fsa([0, 1], [a2, b2], [(0, a2, 1), (1, b2, 0)], [0], [0], Sigcon=[a2], name='M2')
+    B = fsa([0, 1], [b1, a2], [(0, b1, 1), (1, a2, 0)], [0], [0, 1], Sigcon=[a2])
+    G = M1 // M2
+    return M1, M2, G, supcontrollable(G // B, G)
+
+
+def compose(automata):
+    result = automata[0]
+    for A in automata[1:]:
+        result = result // A
+    return result
+
+
+def test_localize_buffer():
+    """as in TCT: M1 starts only with the buffer empty, M2 only with it full"""
+    M1, M2, G, S = buffer_factory()
+    L1, L2 = localize(S, G, [M1, M2])
+    assert (len(L1), len(L2)) == (2, 2) and control_equivalent(compose([L1, L2]), S, G)
+    assert L1.Sigma == {a1, b1, a2} and L1.Sigcon == {a1, a2} and L1.name == 'LOC M1'
+    assert L1.Gamma(0) == {a1, b1} and L1.delta(0, b1) == 1 and L1.Gamma(1) == {a2}
+    assert L2.Sigma == {b1, a2} and L2.Gamma(0) == {b1} and L2.Gamma(1) == {a2}
+    # the reduced supervisor is the conjunction of the two local controllers
+    assert are_langequiv(compose([L1, L2]) // G, supreduce(S, G) // G)
+
+
+def test_localize_transfer_line_like_tct():
+    """LCS_localized_control_transfer_line: the controllers of localize in TCT (pitct 1.0.3)"""
+    M1 = fsa(['D', 'O'], ['e1', 't1'], [('D', 'e1', 'O'), ('O', 't1', 'D')], ['D'], ['D'], Sigcon=['e1'])
+    M2 = fsa(['D', 'O'], ['e2', 't2'], [('D', 'e2', 'O'), ('O', 't2', 'D')], ['D'], ['D'], Sigcon=['e2'])
+    TU = fsa(['D', 'O'], ['e3', 't3', 'r'], [('D', 'e3', 'O'), ('O', 't3', 'D'), ('O', 'r', 'D')],
+             ['D'], ['D'], Sigcon=['e3'])
+    E1 = fsa([0, 1], ['t1', 'r', 'e2'], [(0, 't1', 1), (0, 'r', 1), (1, 'e2', 0)], [0], [0], Sigcon=['e2'])
+    E2 = fsa([0, 1], ['t2', 'e3'], [(0, 't2', 1), (1, 'e3', 0)], [0], [0], Sigcon=['e3'])
+    G = M1 // M2 // TU
+    S = supcontrollable(G // E1 // E2, G)
+    locs = localize(S, G, [M1, M2, TU])
+    transitions = lambda L: {(x, e, L.delta(x, e)) for x in L.X for e in L.Gamma(x)}
+    buffers = {(0, 'r', 1), (0, 't1', 1), (0, 't2', 2), (1, 'e2', 0), (2, 'e3', 0)}
+    assert [transitions(L) for L in locs] == [{(0, 'e1', 0), (0, 't1', 1), (1, 't3', 0)},
+                                              buffers, buffers]
+    assert all(L.Xm == {0} for L in locs)
+    assert are_isomorphic(compose([G] + locs), S)
+
+
+def test_localize_keeps_an_event_that_is_never_enabled():
+    """a controllable event of the agent that S never enables stays, without transitions"""
+    A = fsa([0, 1], ['a', 'c'], [(0, 'a', 1), (1, 'a', 0), (0, 'c', 0)], [0], [0], Sigcon=['c'])
+    E = fsa([0], ['a'], [(0, 'a', 0)], [0], [0], Sigcon=set())
+    S = supcontrollable(A // E.addevents(['c']), A)
+    [L] = localize(S, A, [A])
+    assert len(L) == 1 and L.Sigma == {'c'} and not L.Gamma(0)
+    assert control_equivalent(L, S, A)
+
+
+def test_localize_checks_the_agents():
+    M1, M2, G, S = buffer_factory()
+    with pytest.raises(ValueError, match='different; shared: a1'):
+        localize(S, G, [M1, M1, M2])
+    with pytest.raises(ValueError, match='no agent: a2'):
+        localize(S, G, [M1])
+    with pytest.raises(ValueError, match='at least one agent'):
+        localize(S, G, [])
+    N = fsa([0, 1], ['a'], [(0, 'a', 0), (0, 'a', 1)], [0], [0], Sigcon=['a'])
+    with pytest.raises(ValueError, match='deterministic'):
+        localize(N, N, [N])
+
+
+@pytest.mark.parametrize('rng', rngs(40))
+def test_localize_is_control_equivalent(rng):
+    A1 = random_fsa(rng, nstates=3, events=('a', 'u'), pm=0.6, Sigcon=['a'])
+    A2 = random_fsa(rng, nstates=3, events=('b', 'c', 'v'), pm=0.6, Sigcon=['b', 'c'])
+    G = A1 // A2
+    E = random_fsa(rng, nstates=3, events=('a', 'b', 'c', 'u', 'v'), pm=0.6, Sigcon=['a', 'b', 'c'])
+    S = supcontrollable(G // E, G)
+    if S.empty:
+        return
+    locs = localize(S, G, [A1, A2])
+    assert all(L.Sigcon <= {'a', 'b', 'c'} for L in locs)
+    assert control_equivalent(compose(locs), S, G)
 
 
 def test_supcontrollable_violation_after_trim():

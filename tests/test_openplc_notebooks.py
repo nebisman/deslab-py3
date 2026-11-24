@@ -453,6 +453,27 @@ def test_monolithic_small_factory_supervisor(monolithic_small_factory):
     assert size(deslab.supcontrollable(G // E, G)) == (1, 0)
 
 
+def test_monolithic_small_factory_localized_like_tct(monolithic_small_factory):
+    """the local controllers of TCT (localize with pitct 1.0.3) for the four agents"""
+    names = monolithic_small_factory
+    agents = [names[a] for a in ("model_M1", "model_M2", "B_A", "pulsador")]
+    locs = deslab.localize(names["SUP"], names["G"], agents)
+    transitions = lambda L: {(x, e, L.delta(x, e)) for x in L.X for e in L.Gamma(x)}
+    assert [transitions(L) for L in locs] == [
+        {(0, "start", 1), (1, "M1-ON", 1), (1, "start", 1), (1, "t1", 2), (2, "M1-ON", 2),
+         (2, "M2-ON", 1), (2, "start", 2), (2, "t1", 3), (3, "M2-ON", 2), (3, "start", 3)},
+        {(0, "t1", 1), (1, "M2-ON", 0), (1, "t1", 2), (2, "M2-ON", 1)},
+        {(0, "start", 1), (1, "BA-ON", 1), (1, "start", 1)},
+        set()]
+    assert [L.Xm for L in locs] == [{0, 1, 2, 3}, {0, 1, 2}, {0, 1}, {0}]
+    assert [set(L.Sigma) for L in locs] == [{"start", "M1-ON", "t1", "M2-ON"}, {"t1", "M2-ON"},
+                                            {"start", "BA-ON"}, set()]
+    plant = names["G"]
+    for L in locs:
+        plant = plant // L
+    assert deslab.are_langequiv(plant, names["SUP"] // names["G"])
+
+
 def test_monolithic_small_factory_program(monolithic_small_factory):
     names = monolithic_small_factory
     source = names["st"]
