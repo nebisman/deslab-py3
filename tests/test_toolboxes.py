@@ -231,7 +231,7 @@ def test_localize_buffer():
     M1, M2, G, S = buffer_factory()
     L1, L2 = localize(S, G, [M1, M2])
     assert (len(L1), len(L2)) == (2, 2) and control_equivalent(compose([L1, L2]), S, G)
-    assert L1.Sigma == {a1, b1, a2} and L1.Sigcon == {a1, a2} and L1.name == 'LOC M1'
+    assert L1.Sigma == {a1, b1, a2} and L1.Sigcon == {a1} and L1.name == 'LOC M1'
     assert L1.Gamma(0) == {a1, b1} and L1.delta(0, b1) == 1 and L1.Gamma(1) == {a2}
     assert L2.Sigma == {b1, a2} and L2.Gamma(0) == {b1} and L2.Gamma(1) == {a2}
     # the reduced supervisor is the conjunction of the two local controllers
@@ -254,6 +254,9 @@ def test_localize_transfer_line_like_tct():
     assert [transitions(L) for L in locs] == [{(0, 'e1', 0), (0, 't1', 1), (1, 't3', 0)},
                                               buffers, buffers]
     assert all(L.Xm == {0} for L in locs)
+    # each controller controls only the event of its agent; the others it only observes
+    assert [L.Sigcon for L in locs] == [{'e1'}, {'e2'}, {'e3'}]
+    assert compose(locs).Sigcon == {'e1', 'e2', 'e3'}
     assert are_isomorphic(compose([G] + locs), S)
 
 
@@ -290,7 +293,7 @@ def test_localize_is_control_equivalent(rng):
     if S.empty:
         return
     locs = localize(S, G, [A1, A2])
-    assert all(L.Sigcon <= {'a', 'b', 'c'} for L in locs)
+    assert locs[0].Sigcon <= {'a'} and locs[1].Sigcon <= {'b', 'c'}
     assert control_equivalent(compose(locs), S, G)
 
 

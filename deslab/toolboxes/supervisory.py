@@ -353,7 +353,12 @@ def localize(S, G, agents):
     computed like supreduce, in which two states of S can share a state
     when they are control consistent for those events only. LOC_k also
     observes the events of the other agents that it needs to decide what
-    to disable: these are the communication events between agents.
+    to disable: these are the communication events between agents. So
+    the Sigcon of LOC_k has only the controllable events of the agent k
+    in its alphabet; the communication events are uncontrollable for
+    LOC_k, even if another agent controls them, because LOC_k never
+    disables them. The composition LOC_1 || ... || LOC_n has as
+    controllable events those of all the agents.
 
     The local controllers together are control equivalent to S: the
     composition G || LOC_1 || ... || LOC_n generates and marks the same
@@ -408,7 +413,7 @@ def localize(S, G, agents):
         table = [(e, S.symDict[e]) for e in _sorted(kept) if e in S.symDict]
         label = A.name if A.name and A.name != 'untitled' else str(k + 1)
         controllers.append(fsa(states, kept, transitions, [0], marked, table,
-                               Sigobs=S.Sigobs & kept, Sigcon=(S.Sigcon | G.Sigcon) & kept,
+                               Sigobs=S.Sigobs & kept, Sigcon=mine & kept,
                                name='LOC ' + label))
     return controllers
 
