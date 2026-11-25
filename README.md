@@ -115,7 +115,10 @@ petición interna en una orden, cuando hacen falta, en `event_pairs`. El program
 en inglés: al comienzo, lo que hace cada scan y qué supervisor, autómata auxiliar o coordinador
 es cada `state[k]`; en cada variable, qué guarda y a qué eventos corresponde; antes del código de
 cada autómata, su nombre; y al final de cada transición y de cada orden, su evento. Con
-`comments=False` sale sin comentarios. La función y sus ayudantes
+`comments=False` sale sin comentarios. Durante el primer segundo después de arrancar el PLC, el
+programa solo actualiza los detectores de flanco: las entradas de los dispositivos esclavos Modbus
+valen 0 hasta la primera consulta, y un sensor que vale 1 en reposo daría un flanco de subida
+falso. La función y sus ayudantes
 privados están en [`deslab/toolboxes/codegen.py`](deslab/toolboxes/codegen.py), sin dependencias adicionales.
 Su docstring documenta la API; el [notebook completo](notebooks/pequena_factoria_sin_fallas.ipynb)
 presenta un caso ejecutable con señales y auxiliares de rearme.

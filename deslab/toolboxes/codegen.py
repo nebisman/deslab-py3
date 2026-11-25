@@ -27,6 +27,13 @@ def _comment_text(text):
     return text.replace("(*", "( *").replace("*)", "* )")
 
 
+# The program waits this long after the PLC starts before it processes events. The inputs of
+# OpenPLC's slave devices read 0 until their first poll, so a sensor that is 1 at rest (a
+# retroreflective one, or a normally closed contact) would otherwise give a false rising edge.
+_STARTUP_TIMER = "startup_delay"
+_STARTUP_DELAY = "T#1s"
+_STARTUP_DELAY_TEXT = "second"
+
 # names that DESlab gives by default (fsa, supcontrollable): the comments use a number instead
 _DEFAULT_NAMES = ("", "untitled", r"$K^{\uparrow C}$")
 
@@ -301,6 +308,9 @@ class _STEmitter:
                     signals.add(fields[1])
                     continue
             raise ValueError(f"Invalid PLC mapping for {event!r}: {mapping!r}")
+        if _STARTUP_TIMER in signals:
+            raise ValueError(f"{_STARTUP_TIMER} is the name of the startup timer of the program; "
+                             f"use another name for the PLC signal")
         for name in names:
             for event in self._events(name)[0]:
                 if actuators[event].split(":")[1] not in ("ON", "OFF"):
@@ -453,9 +463,20 @@ class _STEmitter:
                 "\t\t\tinitial := 1;\n\t\tEND_IF;\n\tELSIF initial THEN" + self._note("controller")
                 + "\n" + indented_body + "\n\tEND_IF;"
             )
+        # the inputs of the slave devices are 0 until their first poll: a sensor that is 1 at rest
+        # would give a false rising edge, so the edges follow the inputs for a while before
+        # anything else runs
+        body = (
+            self._line(f"Startup delay: during the first {_STARTUP_DELAY_TEXT} the edges only follow the inputs, "
+                       f"which read 0 until the first poll of the slave devices; no event, order or copy")
+            + f"\t{_STARTUP_TIMER}(IN := TRUE, PT := {_STARTUP_DELAY});\n"
+            f"\tIF NOT {_STARTUP_TIMER}.Q THEN\n\t\tRETURN;\n\tEND_IF;\n"
+            + body
+        )
 
         # what the program does in each scan and which automaton each state[k] is
-        steps = ["computes the input edges and a random number"]
+        steps = ["computes the input edges and a random number",
+                 f"during the first {_STARTUP_DELAY_TEXT} after the PLC starts, does nothing else"]
         if initial != "null":
             steps.append(f"waits for the start signal ({initial}); from then on it runs the next "
                          f"steps every scan")
@@ -550,6 +571,8 @@ class _STEmitter:
         start = "\tVAR\n" + self._line("Internal variables", "\t\t")
         start += '\t\trandom : random_number;' + note("random number generator") + '\n'
         start += '\t\trandom_num : DINT;' + note("random number of this scan") + '\n'
+        start += (f'\t\t{_STARTUP_TIMER} : TON;'
+                  + note(f"startup delay: no event or order during the first {_STARTUP_DELAY_TEXT} of the PLC") + '\n')
         if initial != 'null':
             start += '\t\tinitial : BOOL;' + note(f"1 once the start signal ({initial}) has arrived") + '\n'
         start += (f"\t\tstate : ARRAY [0..{len(n_state)}] OF DINT;"
@@ -737,7 +760,9 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
         does not participate in supervisor coordination.
     initial : event, optional
         ON-level startup signal that latches controller enable; ``"null"``
-        starts immediately. The controller body starts on the following scan,
+        starts as soon as the startup delay ends (see the notes). The signal
+        is read after that delay, and the controller body starts on the
+        following scan,
         preserving the original generator's startup protocol. If this signal
         is also a supervisor event, keep it high until that event is consumed.
     output_dir : str or pathlib.Path, keyword-only
@@ -774,7 +799,8 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
         automaton, a header with its name, with the event of each transition and
         of each order at the end of its line. Each comment is on a line of its
         own or at the end of a code line, so deleting them gives the program
-        written with ``comments=False``, the one of TCT's generator.
+        written with ``comments=False``, the one of TCT's generator plus the
+        startup delay (see the notes).
 
     Returns
     -------
@@ -783,6 +809,15 @@ def generate_ST_OPENPLC(supervisors, plants=(), actuators=None, namest="controll
 
     Notes
     -----
+    During the first second after the PLC starts, the program only runs the
+    edge detectors and returns (a ``TON`` named ``startup_delay``): no event,
+    order or ``Mask`` copy, so every output stays 0. The inputs of OpenPLC's
+    slave devices read 0 until their first poll, and a sensor that is 1 at
+    rest, such as a retroreflective sensor or a normally closed contact, would
+    otherwise give a false rising edge that the supervisor takes as an event.
+    An input change in that second is not an event, and the start signal of
+    ``initial`` is not read before it ends.
+
     The target is OpenPLC with a 20 ms cyclic task and its C-extension syntax
     for random selection. Outputs retain their level until an explicit OFF
     action changes it; applications requiring command pulses must model the

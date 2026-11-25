@@ -31,6 +31,42 @@ def test_public_entry_point_saves_and_returns_program(tmp_path):
     assert "TASK task0(INTERVAL := T#20ms" in source
 
 
+def emitter_and_box():
+    """An emitter that is switched off once a box has gone past a retroreflective sensor (1 while
+    nothing cuts its beam): the box has gone past at the rising edge."""
+    return fsa([0, 1, 2], ["on", "past", "off"], [(0, "on", 1), (1, "past", 2), (2, "off", 0)],
+               [0], [0], Sigcon=["on", "off"])
+
+
+@pytest.mark.parametrize("polls", [0, 1, 10, 49])
+def test_startup_delay_hides_the_first_poll_of_a_sensor_high_at_rest(tmp_path, polls):
+    """OpenPLC reads a slave device's input as 0 until its first poll: a sensor that is 1 at rest
+    then rises, which without the delay would be a box that never went past."""
+    mapping = {"on": "Emitter:ON:%QX0.0", "off": "Emitter:OFF", "past": "RE_Past:Sensor:%IX0.0"}
+    source = generate_ST_OPENPLC([emitter_and_box()], actuators=mapping, output_dir=tmp_path)
+    assert source.count("startup_delay(IN := TRUE, PT := T#1s);") == 1
+    assert source.index("RE_Past(CLK:= Sensor);") < source.index("startup_delay(IN") < source.index("RETURN;")
+    plc = FactoryST(source)
+    for scan in range(50):  # the input is 0 until the poll, then 1: nothing happens
+        plc.scan(Sensor=scan >= polls)
+        assert plc.values["state"][0] == 0 and not plc.values["Emitter"]
+    plc.scan(Sensor=True)       # first scan of the controller: the emitter switches on and waits
+    assert plc.values["state"][0] == 1 and plc.values["Emitter"]
+    for _ in range(5):
+        plc.scan(Sensor=True)
+        assert plc.values["state"][0] == 1 and plc.values["Emitter"]
+    plc.scan(Sensor=False)      # a box cuts the beam
+    plc.scan(Sensor=True)       # and goes past: rising edge, the emitter switches off
+    assert plc.values["state"][0] == 0 and not plc.values["Emitter"]
+
+
+def test_a_signal_cannot_be_named_like_the_startup_timer(tmp_path):
+    mapping = {"start": "startup_delay:ON:%QX0.0", "done": "RE_Done:Done:%IX0.0"}
+    with pytest.raises(ValueError, match="startup timer"):
+        generate_ST_OPENPLC([machine()], actuators=mapping, output_dir=tmp_path)
+    assert not list(tmp_path.iterdir())
+
+
 def test_plant_controllability_overrides_supervisor_defaults(tmp_path):
     plant = machine()
     supervisor = plant.setpar(Sigcon=plant.Sigma)
@@ -107,7 +143,11 @@ def test_startup_preserves_original_held_level_protocol(tmp_path):
     source = generate_ST_OPENPLC([supervisor], actuators=mapping,
                                 initial="enable", output_dir=tmp_path)
     plc = FactoryST(source)
+    # during the startup delay (50 scans of 20 ms) the start signal is not read and nothing moves
+    assert plc.startup(Enable=True, Done=False) == 50
+    assert not plc.values["initial"] and not plc.values["Motor"]
     plc.scan(Enable=False, Done=False)
+    assert plc.started()
     assert plc.values["state"][0] == 0
     assert not plc.values["Motor"]
     plc.scan(Enable=True, Done=False)

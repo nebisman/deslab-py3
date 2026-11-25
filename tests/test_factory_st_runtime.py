@@ -1,8 +1,9 @@
 """Scan regressions for the notebook's actual ST, not an IEC/OpenPLC compiler.
 
 The deliberately small interpreter rejects constructs outside this factory's
-IF/CASE/Boolean-assignment/R_TRIG subset. The physical machines are independent
-of the generator and implement the documented command/latched-finish protocol.
+IF/CASE/Boolean-assignment/R_TRIG/TON/RETURN subset, with a 20 ms scan. The
+physical machines are independent of the generator and implement the documented
+command/latched-finish protocol.
 """
 
 import ast
@@ -13,6 +14,13 @@ import re
 import pytest
 
 from deslab import fsa, generate_ST_OPENPLC, iscontrollable, product, supcontrollable, trim
+
+
+SCAN_MS = 20
+
+
+class Return(Exception):
+    """RETURN: the rest of the scan is skipped."""
 
 
 class FactoryST:
@@ -28,7 +36,7 @@ class FactoryST:
                 assert match, line
                 name, kind = match.groups()
                 array = re.fullmatch(r"ARRAY\s*\[0\.\.(\d+)\]\s+OF (?:DINT|BOOL)", kind)
-                assert array or kind in ("BOOL", "DINT", "BOOL := 0", "R_TRIG", "random_number"), kind
+                assert array or kind in ("BOOL", "DINT", "BOOL := 0", "R_TRIG", "TON", "random_number"), kind
                 self.values[name] = [0] * (int(array[1]) + 1) if array else 0
         self.random_value = random_value
         body = re.sub(r"\bVAR\s+.*?\bEND_VAR\b", "", program, flags=re.S)
@@ -37,6 +45,7 @@ class FactoryST:
         self.nodes = self._block(())
         assert self.position == len(self.lines)
         self.edge_memory = {}
+        self.elapsed_ms = {}
 
     def _block(self, stops):
         nodes = []
@@ -72,6 +81,11 @@ class FactoryST:
                 nodes.append(("case", selector, choices))
             elif match := re.fullmatch(r"(\w+)\(CLK:=\s*(\w+)\);", line):
                 nodes.append(("edge", *match.groups()))
+            elif match := re.fullmatch(r"(\w+)\(IN := (\w+), PT := T#(\d+)(ms|s)\);", line):
+                instance, condition, amount, unit = match.groups()
+                nodes.append(("ton", instance, condition, int(amount) * (1000 if unit == "s" else 1)))
+            elif line == "RETURN;":
+                nodes.append(("return",))
             elif line == "random(":
                 assert self.lines[self.position:self.position + 2] == ["IN := True,", "OUT => random_num);"]
                 self.position += 2
@@ -125,14 +139,42 @@ class FactoryST:
                 current = bool(self.values[signal])
                 self.values[instance + "_Q"] = current and not self.edge_memory.get(instance, False)
                 self.edge_memory[instance] = current
+            elif kind == "ton":
+                instance, condition, preset = args
+                running = bool(self._evaluate(condition))
+                # the scan that calls it first reads 0 ms; each later scan adds one scan period
+                elapsed = self.elapsed_ms.get(instance)
+                elapsed = (0 if elapsed is None else elapsed + SCAN_MS) if running else None
+                self.elapsed_ms[instance] = elapsed
+                self.values[instance + "_Q"] = elapsed is not None and elapsed >= preset
+            elif kind == "return":
+                raise Return
             elif kind == "random":
                 self.values["random_num"] = self.random_value
             else:
                 raise AssertionError(kind)
 
+    def started(self):
+        """True once the startup delay of the program has ended."""
+        return bool(self.values.get("startup_delay_Q", True))
+
+    def startup(self, **inputs):
+        """The scans of the startup delay, with these inputs: the next scan is the first one that
+        runs the controller. Returns how many scans the delay took."""
+        presets = [args[2] for kind, *args in self.nodes if kind == "ton"]
+        assert len(presets) == 1, "the program has one startup delay"
+        scans = presets[0] // SCAN_MS
+        for _ in range(scans):
+            self.scan(**inputs)
+        assert not self.started()
+        return scans
+
     def scan(self, **inputs):
         self.values.update(inputs)
-        self._run(self.nodes)
+        try:
+            self._run(self.nodes)
+        except Return:
+            pass
         return tuple(bool(self.values.get(f"Cmd_M{i}", False)) for i in (1, 2))
 
 
@@ -156,6 +198,9 @@ def factory(tmp_path):
 def test_emitted_factory_st_tracks_physical_events_and_latched_rearm(factory, durations, clear_delay):
     supervisor, source = factory
     plc = FactoryST(source)
+    # one second of 20 ms scans with the machines at rest: no order and the initial state
+    assert plc.startup(Fin_M1=False, Fin_M2=False) == 50
+    assert plc.values["state"][0] == 0 and not any(plc.values.get(f"Cmd_M{i}") for i in (1, 2))
     expected = next(iter(supervisor.X0))
     commands = (False, False)
     finish = [False, False]

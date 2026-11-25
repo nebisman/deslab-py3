@@ -81,7 +81,10 @@ class LatchedMachine:
 
 
 def factory_scans(plc, machines, scans):
-    """Run the PLC with the machines; yield (scan, Fin inputs, abstract events, PLC values)."""
+    """Run the PLC with the machines, after its startup delay with the machines at rest; yield
+    (scan, Fin inputs, abstract events, PLC values), counting the scans from the end of the delay."""
+    plc.startup(Fin_M1=False, Fin_M2=False)
+    assert not plc.values["Cmd_M1"] and not plc.values["Cmd_M2"]
     commands = [False, False]
     for scan in range(1, scans + 1):
         events = []
@@ -160,7 +163,7 @@ def test_pequena_factoria_trace_matches_the_notebook(pequena_factoria):
 
 def test_pequena_factoria_program(pequena_factoria):
     source = pequena_factoria["st"]
-    assert len(without_comments(source).splitlines()) == 103
+    assert len(without_comments(source).splitlines()) == 108
     assert "slt0" not in source            # SUP never enables two controllable events at once
     assert "Cmd_M1 := 0;" in source and "Cmd_M2 := 0;" in source
 
@@ -200,9 +203,18 @@ def without_comments(source):
     return COMMENTS.sub("", source)
 
 
+# the startup delay of generate_ST_OPENPLC, which TCT's generator does not write
+STARTUP = ("\t\tstartup_delay : TON;\n",
+           "\tstartup_delay(IN := TRUE, PT := T#1s);\n\tIF NOT startup_delay.Q THEN\n\t\tRETURN;\n\tEND_IF;\n")
+
+
 def as_tct(source):
-    """The program as TCT writes it: without comments and named tesis0 instead of supcon."""
+    """The program as TCT writes it: without comments and the startup delay, and named tesis0
+    instead of supcon."""
     source = without_comments(source)
+    for text in STARTUP:
+        assert source.count(text) == 1
+        source = source.replace(text, "")
     assert source.count("PROGRAM supcon\n") == 1 and source.count("WITH task0 : supcon;") == 1
     return source.replace("PROGRAM supcon\n", "PROGRAM tesis0\n").replace(
         "WITH task0 : supcon;", "WITH task0 : tesis0;")
